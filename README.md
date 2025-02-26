@@ -2,10 +2,11 @@
 
 ## 项目概述
 
-本仓库包含两个主要组件：
+本仓库包含三个主要组件：
 
 1. **Janus AI 图像生成与分析**：基于Janus-Pro-7B模型的图像生成和分析系统，针对NVIDIA GPU优化。
 2. **SingaReport 智慧城市解决方案**：一个完整的智慧城市解决方案提案，专为新加坡打造的基于华为云技术的市民参与平台。
+3. **SingaReport_Web 前端应用**：基于Next.js和Tailwind CSS开发的现代化Web应用，实现了市民参与平台的用户界面。
 
 ## 目录结构
 
@@ -19,11 +20,19 @@
 │   ├── requirements.txt        # 依赖项列表
 │   └── README.md               # Janus项目说明
 │
-└── SingaReport_提案文件/        # 智慧城市解决方案提案
-    ├── SingaReport_智慧城市解决方案提案.md    # 主要解决方案文档
-    ├── SingaReport_演示摘要.txt              # 演示文稿大纲
-    ├── SingaReport_项目计划.txt              # 项目实施计划
-    └── README.md                            # 提案文件说明
+├── SingaReport_提案文件/        # 智慧城市解决方案提案
+│   ├── SingaReport_智慧城市解决方案提案.md    # 主要解决方案文档
+│   ├── SingaReport_演示摘要.txt              # 演示文稿大纲
+│   ├── SingaReport_项目计划.txt              # 项目实施计划
+│   └── README.md                            # 提案文件说明
+│
+└── SingaReport_Web/            # 前端Web应用
+    ├── src/                    # 源代码目录
+    │   ├── app/                # Next.js应用页面
+    │   ├── components/         # 可复用组件
+    │   └── lib/                # 工具函数和库
+    ├── package.json            # npm依赖配置
+    └── PROJECT_STATUS_REPORT.md # 项目状态报告
 ```
 
 ## Janus AI 模型说明
@@ -44,7 +53,34 @@ SingaReport是一个智能城市反馈系统提案，专为新加坡打造，采
 - **技术栈**：使用华为云ModelArts、MindSpore框架和华为云容器服务等
 - **项目计划**：包含详细的12个月实施路线图
 
-## 安装与使用
+## SingaReport_Web 前端应用
+
+SingaReport_Web是一个基于Next.js 14开发的现代化Web应用，为SingaReport项目提供用户界面：
+
+- **技术栈**：Next.js、React、TypeScript、Tailwind CSS
+- **主要功能**：
+  - 用户登录和注册系统
+  - 多步骤问题报告创建流程
+  - 地图集成的问题可视化
+  - 响应式设计，支持移动和桌面设备
+- **开发状态**：已实现基本的认证和UI组件，正在进行数据库集成和报告功能开发
+
+### 运行Web应用
+
+```bash
+# 进入Web应用目录
+cd SingaReport_Web
+
+# 安装依赖
+npm install
+
+# 启动开发服务器
+npm run dev
+```
+
+应用将在 http://localhost:3000 运行。
+
+## 安装与使用 (Janus)
 
 ### 系统要求
 - Python 3.10+
@@ -103,7 +139,7 @@ python generation_inference.py
 ## 版权声明
 
 - Janus模型基于DeepSeek开源许可
-- SingaReport提案文件为原创内容
+- SingaReport提案文件和Web应用为原创内容
 
 ## 联系方式
 
