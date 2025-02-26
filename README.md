@@ -46,21 +46,59 @@ SingaReport是一个智能城市反馈系统提案，专为新加坡打造，采
 
 ## 安装与使用
 
-### Janus模型运行要求：
+### 系统要求
 - Python 3.10+
 - PyTorch 2.0+ 
 - CUDA 12.0+（推荐）
 - 最小8GB GPU内存
 - 建议使用：NVIDIA RTX 3070 Ti或更高
 
+### 安装依赖
+
 ```bash
 # 安装依赖
 cd Janus
 pip install -r requirements.txt
 
-# 运行图像生成
+# 或者直接安装主要依赖
+pip install torch==2.0.1 transformers>=4.38.2 timm>=0.9.16 accelerate>=0.26.0 bitsandbytes>=0.41.0 sentencepiece attrdict einops pillow>=9.0.0 numpy>=1.24.0 diffusers tqdm
+```
+
+### 下载模型
+
+Janus-Pro-7B模型需要单独下载。您可以从Hugging Face获取：
+```bash
+# 创建模型目录
+mkdir -p Janus/models/Janus-Pro-7B
+
+# 使用git-lfs下载模型
+git lfs install
+git clone https://huggingface.co/deepseek-ai/Janus-Pro-7B Janus/models/Janus-Pro-7B
+```
+
+### 运行图像生成
+
+```bash
+# 确保在正确的目录中
+cd Janus
+
+# 运行图像生成脚本
 python generation_inference.py
 ```
+
+## 常见问题解决
+
+### GPU内存不足
+如果遇到GPU内存不足的问题，可以尝试以下方法：
+1. 在`generation_inference.py`中减少`parallel_size`参数值
+2. 调整设备映射，将更多层放到CPU上
+3. 确保启用了8位量化（BitsAndBytes配置）
+
+### CUDA错误
+如果遇到CUDA相关错误：
+1. 确保已安装CUDA 12.0+
+2. 检查PyTorch是否安装了CUDA支持版本
+3. 可以通过`torch.cuda.is_available()`验证CUDA可用性
 
 ## 版权声明
 
