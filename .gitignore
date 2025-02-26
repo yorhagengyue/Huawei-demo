@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+env/
+ENV/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Model checkpoints and large files
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.tar
+*.tar.gz
+*.zip
+*.h5
+
+# Logs
+logs/
+*.log
+
+# Generated files
+generated_samples/
+tmp/
+
+# OS specific
+.DS_Store
+Thumbs.db 
