@@ -17,7 +17,7 @@ export default function LoginForm() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // 监听AuthContext错误
+  // Listen for AuthContext errors
   useEffect(() => {
     if (authError) {
       setError(authError);
@@ -35,47 +35,47 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // 清除之前的错误和成功消息
+    // Clear previous errors and success messages
     setError('');
     setSuccessMessage('');
     setIsSubmitting(true);
     
     try {
-      // 调用AuthContext的login方法
+      // Call login method from AuthContext
       const success = await login(formData.email, formData.password);
       
       if (success) {
-        setSuccessMessage('登录成功！正在重定向到仪表板...');
+        setSuccessMessage('Login successful! Redirecting to dashboard...');
         
-        // 设置延迟以展示成功消息，并确保认证状态同步
+        // Set delay to show success message and ensure auth state syncs
         setTimeout(() => {
           router.push('/dashboard');
         }, 1000);
       } else {
-        setError('登录失败，请检查您的凭据');
+        setError('Login failed, please check your credentials');
       }
     } catch (err: any) {
-      setError(err.message || '登录过程中发生错误');
+      setError(err.message || 'An error occurred during login');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // 组合加载状态
+  // Combined loading state
   const isLoading = isSubmitting || authLoading;
 
   return (
     <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">登录到您的账户</h2>
+      <h2 className="text-2xl font-bold mb-6 text-gray-800">Sign in to your account</h2>
       
-      {/* 错误提示 */}
+      {/* Error alert */}
       {error && (
         <div className="mb-4 p-3 bg-red-50 text-red-700 border border-red-200 rounded-md">
           {error}
         </div>
       )}
       
-      {/* 成功提示 */}
+      {/* Success alert */}
       {successMessage && (
         <div className="mb-4 p-3 bg-green-50 text-green-700 border border-green-200 rounded-md">
           {successMessage}
@@ -85,7 +85,7 @@ export default function LoginForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            电子邮箱
+            Email Address
           </label>
           <input
             id="email"
@@ -103,7 +103,7 @@ export default function LoginForm() {
         
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            密码
+            Password
           </label>
           <input
             id="password"
@@ -112,7 +112,7 @@ export default function LoginForm() {
             autoComplete="current-password"
             required
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
-            placeholder="您的密码"
+            placeholder="Your password"
             value={formData.password}
             onChange={handleChange}
             disabled={isLoading}
@@ -131,13 +131,13 @@ export default function LoginForm() {
               disabled={isLoading}
             />
             <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-900">
-              记住我
+              Remember me
             </label>
           </div>
           
           <div className="text-sm">
             <a href="/forgot-password" className="font-medium text-primary hover:text-primary/80">
-              忘记密码?
+              Forgot password?
             </a>
           </div>
         </div>
@@ -156,18 +156,18 @@ export default function LoginForm() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                正在登录...
+                Signing in...
               </div>
-            ) : '登录'}
+            ) : 'Sign in'}
           </button>
         </div>
       </form>
       
       <div className="mt-4 text-center">
         <p className="text-sm text-gray-600">
-          还没有账户?{' '}
+          Don't have an account?{' '}
           <a href="/register" className="font-medium text-primary hover:text-primary/80">
-            立即注册
+            Register now
           </a>
         </p>
       </div>

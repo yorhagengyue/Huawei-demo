@@ -16,12 +16,12 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // 检查用户是否已登录，如果已登录则重定向到仪表板
+  // Check if user is already logged in, if logged in redirect to dashboard
   useEffect(() => {
-    // 确保立即检查一次认证状态
+    // Ensure authentication status is checked immediately
     checkAuth();
     
-    // 如果用户已登录，重定向到仪表板
+    // If user is logged in, redirect to dashboard
     if (user && !authLoading) {
       router.replace('/dashboard');
     }
@@ -59,10 +59,15 @@ export default function LoginPage() {
         throw new Error(data.error || 'Login failed');
       }
       
-      // 登录成功后执行检查认证操作
+      // 保存令牌到localStorage
+      if (data.token) {
+        localStorage.setItem('auth_token', data.token);
+      }
+      
+      // Check authentication after successful login
       await checkAuth();
       
-      // 延迟后再重定向，确保状态已更新
+      // Delay redirect to ensure state is updated
       setTimeout(() => {
         // Success - redirect to dashboard
         router.push('/dashboard');
@@ -75,7 +80,7 @@ export default function LoginPage() {
     }
   };
 
-  // 如果认证状态正在加载，显示加载中
+  // If authentication state is loading, show loading indicator
   if (authLoading) {
     return (
       <div className="min-h-screen flex justify-center items-center">
@@ -84,12 +89,12 @@ export default function LoginPage() {
     );
   }
 
-  // 如果用户已登录，页面将在useEffect中重定向，这里不需要渲染
+  // If user is logged in, page will redirect in useEffect, no need to render here
   if (user) {
     return null;
   }
 
-  // 只有用户未登录时才渲染登录表单
+  // Only render login form when user is not logged in
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">

@@ -138,9 +138,9 @@ export default function Footer() {
           <div className="mt-4 md:mt-0">
             <div className="flex items-center space-x-4">
               <button className="text-sm text-gray-400 hover:text-white">English</button>
-              <button className="text-sm text-gray-400 hover:text-white">中文</button>
+              <button className="text-sm text-gray-400 hover:text-white">Chinese</button>
               <button className="text-sm text-gray-400 hover:text-white">Bahasa Melayu</button>
-              <button className="text-sm text-gray-400 hover:text-white">தமிழ்</button>
+              <button className="text-sm text-gray-400 hover:text-white">Tamil</button>
             </div>
           </div>
         </div>

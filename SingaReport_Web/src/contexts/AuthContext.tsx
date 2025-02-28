@@ -22,7 +22,7 @@ type RegisterData = {
   name?: string;
 };
 
-// 创建一个默认的上下文值
+// Create a default context value
 const defaultContext: AuthContextType = {
   user: null,
   isLoading: true,
@@ -34,22 +34,22 @@ const defaultContext: AuthContextType = {
   checkAuth: async () => false,
 };
 
-// 创建上下文
+// Create context
 const AuthContext = createContext<AuthContextType>(defaultContext);
 
-// 定义AuthContext的提供者组件
+// Define AuthContext provider component
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   
-  // 使用useRef来跟踪是否已经检查了身份验证
+  // Use useRef to track if authentication has been checked
   const hasCheckedAuth = useRef(false);
   const authCheckInProgress = useRef(false);
   const lastAuthCheck = useRef<number>(0);
-  const AUTH_CHECK_INTERVAL = 60000; // 60秒
+  const AUTH_CHECK_INTERVAL = 60000; // 60 seconds
   
-  // 事件监听器用于跨标签页同步
+  // Event listeners for cross-tab synchronization
   const setupEventListeners = useCallback(() => {
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === 'auth_event') {
@@ -66,55 +66,63 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  // 广播身份验证状态变化
+  // Broadcast authentication state changes
   const broadcastAuthStateChange = (type: 'login' | 'logout') => {
     localStorage.setItem('auth_event', JSON.stringify({ type, timestamp: Date.now() }));
     
-    // 同时使用自定义事件在同一个标签页中进行通信
+    // Also use custom events for communication within the same tab
     const event = new CustomEvent('auth_state_changed', { 
       detail: { type, timestamp: Date.now() }
     });
     document.dispatchEvent(event);
   };
 
-  // 检查用户是否已认证的函数
+  // Function to check if user is authenticated
   const checkAuth = useCallback(async (): Promise<boolean> => {
-    // 如果正在进行检查，则返回
+    // If check is in progress, return
     if (authCheckInProgress.current) {
       return !!user;
     }
     
-    // 检查上次验证时间，如果时间太短，则跳过
+    // Check last verification time, if too recent, skip
     const now = Date.now();
     if (now - lastAuthCheck.current < 1000 && hasCheckedAuth.current) {
       return !!user;
     }
     
-    // 设置状态以表明正在进行检查
+    // Set state to indicate check is in progress
     authCheckInProgress.current = true;
     setIsLoading(true);
 
     try {
-      // 调用验证API
+      // 获取localStorage中的令牌
+      const token = localStorage.getItem('auth_token');
+      
+      // 准备请求头
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      };
+      
+      // 如果有令牌,添加到请求头
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      // Call verification API
       const response = await fetch('/api/auth/verify', {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        // 确保包含凭据（cookies）
         credentials: 'include',
-        // 防止缓存
+        // Prevent caching
         cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
+        headers
       });
 
       const data = await response.json();
 
-      // 更新上次检查时间
+      // Update last check time
       lastAuthCheck.current = Date.now();
       hasCheckedAuth.current = true;
 
@@ -124,12 +132,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return true;
       } else {
         setUser(null);
+        // 如果验证失败,清除本地令牌
+        localStorage.removeItem('auth_token');
         return false;
       }
     } catch (error) {
       console.error('Authentication check failed:', error);
       setUser(null);
       setAuthError('Authentication check failed');
+      // 发生错误时清除本地令牌
+      localStorage.removeItem('auth_token');
       return false;
     } finally {
       setIsLoading(false);
@@ -137,12 +149,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user]);
 
-  // 登录功能
+  // Login functionality
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     setAuthError(null);
 
     try {
+      // 添加调试日志
+      console.log('尝试登录:', email);
+      
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -153,24 +168,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       const data = await response.json();
+      
+      // 添加调试日志
+      console.log('登录响应状态:', response.status, response.ok);
 
       if (!response.ok) {
         throw new Error(data.error || 'Login failed');
       }
 
-      // 登录成功后多次验证以确保状态同步
+      // 保存令牌到localStorage以便API调用
+      if (data.token) {
+        console.log('保存令牌到localStorage');
+        localStorage.setItem('auth_token', data.token);
+      } else {
+        console.warn('登录响应中没有令牌');
+      }
+
+      // 手动设置用户数据以防止必须等待checkAuth
+      if (data.user) {
+        setUser(data.user);
+      }
+
+      // Verify multiple times after login to ensure state synchronization
       await checkAuth();
       
-      // 广播登录事件
+      // Broadcast login event
       broadcastAuthStateChange('login');
       
-      // 延迟以确保cookie和状态更新
+      // Delay to ensure cookie and state updates
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      // 再次检查以确保状态一致
+      // Check again to ensure state consistency
       const isAuthenticated = await checkAuth();
       return isAuthenticated;
     } catch (error: any) {
+      console.error('登录失败:', error);
       setAuthError(error.message || 'Login failed');
       return false;
     } finally {
@@ -178,11 +210,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // 注销功能
+  // Logout functionality
   const logout = async (): Promise<void> => {
     setIsLoading(true);
 
     try {
+      // 先在客户端清除状态
+      setUser(null);
+      localStorage.removeItem('auth_token');
+      
+      // 然后调用服务器注销API
       const response = await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
@@ -192,11 +229,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const data = await response.json();
         throw new Error(data.error || 'Logout failed');
       }
-
-      // 清除用户状态
-      setUser(null);
       
-      // 广播注销事件
+      // Broadcast logout event
       broadcastAuthStateChange('logout');
     } catch (error) {
       console.error('Logout error:', error);
@@ -205,27 +239,49 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // 注册功能
+  // Register functionality
   const register = async (userData: RegisterData): Promise<boolean> => {
     setIsLoading(true);
     setAuthError(null);
 
     try {
+      // 添加调试日志
+      console.log('尝试注册用户:', userData.username);
+      
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(userData),
+        credentials: 'include',
       });
 
       const data = await response.json();
+      
+      // 添加调试日志
+      console.log('注册响应状态:', response.status, response.ok);
 
       if (!response.ok) {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // 注册成功后自动登录
+      // 保存令牌到localStorage以便API调用
+      if (data.token) {
+        console.log('保存注册令牌到localStorage');
+        localStorage.setItem('auth_token', data.token);
+      } else {
+        console.warn('注册响应中没有令牌');
+      }
+
+      // Register successfully, set user without login again
+      if (data.user) {
+        setUser(data.user);
+        broadcastAuthStateChange('login');
+        return true;
+      }
+
+      // 如果没有返回用户数据,通过登录获取
       return await login(userData.email, userData.password);
     } catch (error: any) {
       setAuthError(error.message || 'Registration failed');
@@ -235,17 +291,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // 组件挂载时设置事件监听器并检查身份验证状态
+  // Component mount, set event listeners, and check authentication status
   useEffect(() => {
-    // 设置事件监听器
+    // Set event listeners
     const cleanup = setupEventListeners();
     
-    // 页面加载时检查身份验证
+    // Check authentication status when page loads
     if (!hasCheckedAuth.current) {
       checkAuth();
     }
     
-    // 设置自定义事件监听器
+    // Set custom event listeners
     const handleAuthStateChanged = () => {
       if (!authCheckInProgress.current) {
         checkAuth();
@@ -254,7 +310,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     
     document.addEventListener('auth_state_changed', handleAuthStateChanged);
     
-    // 设置定期检查
+    // Set periodic checks
     const intervalId = setInterval(() => {
       const now = Date.now();
       if (now - lastAuthCheck.current > AUTH_CHECK_INTERVAL) {
@@ -269,7 +325,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [checkAuth, setupEventListeners]);
 
-  // 提供上下文值
+  // Provide context value
   const contextValue: AuthContextType = {
     user,
     isLoading,
@@ -288,23 +344,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-// 自定义钩子
+// Custom hook
 export const useAuth = () => useContext(AuthContext);
 
-// 用于监听认证状态变化的钩子函数
+// Custom hook function to listen for authentication status changes
 export const useAuthSync = () => {
   const [, setForceUpdate] = useState({});
 
   useEffect(() => {
-    // 当认证状态改变时强制更新
+    // Force update when authentication status changes
     const handleAuthStateChange = () => {
       setForceUpdate({});
     };
 
-    // 监听自定义认证状态变化事件
+    // Listen for custom authentication status change events
     document.addEventListener('auth_state_changed', handleAuthStateChange);
     
-    // 监听localStorage变化
+    // Listen for localStorage changes
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === 'auth_event') {
         setForceUpdate({});

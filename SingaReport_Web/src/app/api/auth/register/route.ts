@@ -7,59 +7,47 @@ export async function POST(request: NextRequest) {
     // Parse the request body
     const body = await request.json();
     
+    // Add debug log
+    console.log('Register request body:', JSON.stringify(body));
+    
     // Extract user registration data
     const { 
-      firstName, 
-      lastName, 
+      username, 
+      name, 
       email, 
-      phone, 
-      password, 
-      address, 
-      postalCode, 
-      preferredLanguage, 
-      agreeTerms, 
-      receiveUpdates 
+      password
     } = body;
 
     // Basic validation
-    if (!firstName || !lastName || !email || !phone || !password || !address || !postalCode) {
+    if (!username || !email || !password) {
+      console.log('Register validation failed:', { username, email, password: !!password });
       return NextResponse.json(
-        { error: '缺少必填字段' },
-        { status: 400 }
-      );
-    }
-
-    if (!agreeTerms) {
-      return NextResponse.json(
-        { error: '必须同意服务条款' },
+        { error: 'Missing required fields. Username, email, and password are required.' },
         { status: 400 }
       );
     }
 
     try {
       // Register the user
-      const username = `${firstName.toLowerCase()}${lastName.toLowerCase().substring(0, 2)}${Math.floor(Math.random() * 1000)}`;
-      
       const newUser = await createUser({
         username,
         email,
         password,
-        name: `${firstName} ${lastName}`,
-        phone
+        name
       });
 
-      // 创建JWT令牌
-      const token = createToken({
+      // 使用新的异步createToken方法创建JWT令牌
+      const token = await createToken({
         id: newUser.id,
         email: newUser.email,
         username: newUser.username
       });
 
-      // 创建响应
+      // Create response
       const response = NextResponse.json(
         { 
           success: true,
-          message: '用户注册成功',
+          message: 'User registration successful',
           user: {
             id: newUser.id,
             name: newUser.name,
@@ -71,13 +59,13 @@ export async function POST(request: NextRequest) {
         { status: 201 }
       );
 
-      // 设置HTTP-only cookie
+      // Set HTTP-only cookie
       response.cookies.set({
         name: 'auth_token',
         value: token,
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 24, // 24小时
+        maxAge: 60 * 60 * 24, // 24 hours
         path: '/',
       });
 
@@ -85,14 +73,14 @@ export async function POST(request: NextRequest) {
     } catch (err: any) {
       // Handle specific errors from the createUser function
       return NextResponse.json(
-        { error: err.message || '注册失败' },
+        { error: err.message || 'Registration failed' },
         { status: 409 }
       );
     }
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json(
-      { error: '服务器内部错误' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

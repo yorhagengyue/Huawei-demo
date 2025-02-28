@@ -3,72 +3,72 @@ import { prisma } from '@/lib/db/prisma';
 import { verifyToken, extractTokenFromHeader } from '@/lib/auth/jwt-utils';
 import { verifyPassword, hashPassword } from '@/lib/auth/auth-utils';
 
-// 修改密码
+// Change password
 export async function POST(request: NextRequest) {
   try {
-    // 验证用户身份
+    // Verify user identity
     const token = request.cookies.get('auth_token')?.value 
                 || extractTokenFromHeader(request.headers.get('Authorization'));
     
     if (!token) {
       return NextResponse.json(
-        { error: '未授权访问' },
+        { error: 'Authentication required. Please log in to change your password.' },
         { status: 401 }
       );
     }
 
-    const user = verifyToken(token);
+    const user = await verifyToken(token);
     if (!user) {
       return NextResponse.json(
-        { error: '无效或过期的令牌' },
+        { error: 'Your session has expired. Please log in again.' },
         { status: 401 }
       );
     }
 
-    // 解析请求数据
+    // Parse request data
     const body = await request.json();
     const { currentPassword, newPassword } = body;
     
-    // 基本验证
+    // Basic validation
     if (!currentPassword || !newPassword) {
       return NextResponse.json(
-        { error: '当前密码和新密码都必须提供' },
+        { error: 'Both current password and new password are required.' },
         { status: 400 }
       );
     }
 
     if (newPassword.length < 6) {
       return NextResponse.json(
-        { error: '新密码必须至少6个字符' },
+        { error: 'Your new password must be at least 6 characters long.' },
         { status: 400 }
       );
     }
 
-    // 查询用户
+    // Query user
     const userRecord = await prisma.user.findUnique({
       where: { id: user.id }
     });
 
     if (!userRecord) {
       return NextResponse.json(
-        { error: '用户不存在' },
+        { error: 'Unable to find your account. Please contact support.' },
         { status: 404 }
       );
     }
 
-    // 验证当前密码
+    // Verify current password
     const isPasswordValid = await verifyPassword(currentPassword, userRecord.password);
     if (!isPasswordValid) {
       return NextResponse.json(
-        { error: '当前密码不正确' },
+        { error: 'Current password is incorrect. Please try again.' },
         { status: 400 }
       );
     }
 
-    // 对新密码进行哈希处理
+    // Hash the new password
     const hashedNewPassword = await hashPassword(newPassword);
 
-    // 更新密码
+    // Update password
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -78,12 +78,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: '密码修改成功'
+      message: 'Password changed successfully'
     });
   } catch (error) {
-    console.error('密码修改出错:', error);
+    console.error('Password change error:', error);
     return NextResponse.json(
-      { error: '服务器内部错误' },
+      { error: 'We encountered an error while changing your password. Please try again later.' },
       { status: 500 }
     );
   }

@@ -17,16 +17,16 @@ export default function ProtectedRoute({
   const { user, isLoading, isAuthenticated, checkAuth } = useAuth();
 
   useEffect(() => {
-    // 确保立即检查一次认证状态
+    // Ensure auth status is checked immediately
     checkAuth();
     
-    // 如果用户未登录且加载完成，则重定向到登录页面
+    // If user is not logged in and loading is complete, redirect to login page
     if (!isLoading && !isAuthenticated) {
       router.replace(fallbackUrl);
     }
   }, [isAuthenticated, isLoading, router, fallbackUrl, checkAuth]);
 
-  // 加载中状态
+  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -35,11 +35,11 @@ export default function ProtectedRoute({
     );
   }
 
-  // 如果未认证，不渲染子组件
+  // If not authenticated, don't render children
   if (!isAuthenticated) {
     return null;
   }
 
-  // 用户已认证，渲染子组件
+  // User is authenticated, render children
   return <>{children}</>;
 } 

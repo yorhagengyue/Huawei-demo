@@ -2,29 +2,29 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { verifyToken, extractTokenFromHeader } from '@/lib/auth/jwt-utils';
 
-// 获取用户信息
+// Get user information
 export async function GET(request: NextRequest) {
   try {
-    // 验证用户身份
+    // Verify user identity
     const token = request.cookies.get('auth_token')?.value 
                 || extractTokenFromHeader(request.headers.get('Authorization'));
     
     if (!token) {
       return NextResponse.json(
-        { error: '未授权访问' },
+        { error: 'Unauthorized access' },
         { status: 401 }
       );
     }
 
-    const user = verifyToken(token);
+    const user = await verifyToken(token);
     if (!user) {
       return NextResponse.json(
-        { error: '无效或过期的令牌' },
+        { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    // 查询用户信息
+    // Query user information
     const userProfile = await prisma.user.findUnique({
       where: { id: user.id },
       select: {
@@ -33,9 +33,22 @@ export async function GET(request: NextRequest) {
         email: true,
         name: true,
         phone: true,
+        avatar: true,
+        bio: true,
+        address: true,
+        postalCode: true,
+        preferredLanguage: true,
+        notificationsEnabled: true,
+        emailNotifications: true,
+        pushNotifications: true,
+        smsNotifications: true,
+        twoFactorEnabled: true,
+        isActive: true,
+        emailVerified: true,
+        lastLogin: true,
         createdAt: true,
         updatedAt: true,
-        // 包含用户创建的报告数量
+        // Include the count of reports created by the user
         _count: {
           select: {
             reports: true
@@ -44,68 +57,92 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // 如果用户不存在
+    // If the user doesn't exist
     if (!userProfile) {
       return NextResponse.json(
-        { error: '用户不存在' },
+        { error: 'User not found' },
         { status: 404 }
       );
     }
 
-    // 返回用户信息
+    // Return user information
     return NextResponse.json({
       success: true,
       data: userProfile
     });
   } catch (error) {
-    console.error('获取用户信息出错:', error);
+    console.error('Error getting user information:', error);
     return NextResponse.json(
-      { error: '服务器内部错误' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
 
-// 更新用户信息
+// Update user information
 export async function PATCH(request: NextRequest) {
   try {
-    // 验证用户身份
+    // Verify user identity
     const token = request.cookies.get('auth_token')?.value 
                 || extractTokenFromHeader(request.headers.get('Authorization'));
     
     if (!token) {
       return NextResponse.json(
-        { error: '未授权访问' },
+        { error: 'Unauthorized access' },
         { status: 401 }
       );
     }
 
-    const user = verifyToken(token);
+    const user = await verifyToken(token);
     if (!user) {
       return NextResponse.json(
-        { error: '无效或过期的令牌' },
+        { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    // 解析请求数据
+    // Parse request data
     const body = await request.json();
-    const { name, phone } = body;
+    const { 
+      name, 
+      phone, 
+      avatar, 
+      bio, 
+      address, 
+      postalCode, 
+      preferredLanguage,
+      notificationsEnabled,
+      emailNotifications,
+      pushNotifications,
+      smsNotifications
+    } = body;
     
-    // 至少提供一个字段
-    if (!name && !phone) {
+    // Provide at least one field
+    if (!name && !phone && !avatar && !bio && !address && !postalCode && 
+        !preferredLanguage && notificationsEnabled === undefined && 
+        emailNotifications === undefined && pushNotifications === undefined && 
+        smsNotifications === undefined) {
       return NextResponse.json(
-        { error: '至少提供一个要更新的字段' },
+        { error: 'At least one field must be provided for update' },
         { status: 400 }
       );
     }
 
-    // 更新用户信息
+    // Update user information
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
         ...(name && { name }),
-        ...(phone && { phone })
+        ...(phone && { phone }),
+        ...(avatar && { avatar }),
+        ...(bio && { bio }),
+        ...(address && { address }),
+        ...(postalCode && { postalCode }),
+        ...(preferredLanguage && { preferredLanguage }),
+        ...(notificationsEnabled !== undefined && { notificationsEnabled }),
+        ...(emailNotifications !== undefined && { emailNotifications }),
+        ...(pushNotifications !== undefined && { pushNotifications }),
+        ...(smsNotifications !== undefined && { smsNotifications })
       },
       select: {
         id: true,
@@ -113,19 +150,29 @@ export async function PATCH(request: NextRequest) {
         email: true,
         name: true,
         phone: true,
+        avatar: true,
+        bio: true,
+        address: true,
+        postalCode: true,
+        preferredLanguage: true,
+        notificationsEnabled: true,
+        emailNotifications: true,
+        pushNotifications: true,
+        smsNotifications: true,
+        twoFactorEnabled: true,
         updatedAt: true
       }
     });
 
     return NextResponse.json({
       success: true,
-      message: '用户信息更新成功',
+      message: 'User profile updated successfully',
       data: updatedUser
     });
   } catch (error) {
-    console.error('更新用户信息出错:', error);
+    console.error('Error updating user information:', error);
     return NextResponse.json(
-      { error: '服务器内部错误' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

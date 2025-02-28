@@ -72,12 +72,12 @@ export async function POST(request: NextRequest) {
     
     if (!token) {
       return NextResponse.json(
-        { error: '未授权访问' },
+        { error: 'Unauthorized access' },
         { status: 401 }
       );
     }
 
-    const user = verifyToken(token);
+    const user = await verifyToken(token);
     if (!user) {
       return NextResponse.json(
         { error: '无效或过期的令牌' },

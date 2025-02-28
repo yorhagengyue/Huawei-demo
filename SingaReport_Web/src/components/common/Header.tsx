@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth, useAuthSync } from '@/contexts/AuthContext';
+import ConfirmDialog from './ConfirmDialog';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const { user, isLoading, logout, checkAuth } = useAuth();
   
   // Force re-render when auth state changes
@@ -51,20 +53,30 @@ export default function Header() {
     };
   }, [checkAuth]);
   
-  // 登出处理
+  // Logout handler
   const handleLogout = async () => {
-    // 关闭所有打开的菜单
+    // Show confirmation dialog
+    setShowLogoutConfirm(true);
+  };
+  
+  const confirmLogout = async () => {
+    // Close all open menus
     setIsUserMenuOpen(false);
     setIsMenuOpen(false);
+    setShowLogoutConfirm(false);
     
     console.log('🚪 Header: Initiating logout');
     await logout();
     
-    // 强制刷新页面 - 仅在登出成功后执行
+    // Force refresh the page - only after successful logout
     window.location.href = '/';
   };
+  
+  const cancelLogout = () => {
+    setShowLogoutConfirm(false);
+  };
 
-  // 服务器端渲染占位符
+  // Server-side rendering placeholder
   if (!isMounted.current) {
     return (
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -80,7 +92,7 @@ export default function Header() {
     );
   }
 
-  // 加载状态 - 初始认证检查期间
+  // Loading state - during initial auth check
   if (isLoading && !initialLoadComplete.current) {
     return (
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -143,7 +155,7 @@ export default function Header() {
                       English
                     </button>
                     <button className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                      中文 (Chinese)
+                      Chinese
                     </button>
                     <button className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                       Bahasa Melayu
@@ -184,7 +196,7 @@ export default function Header() {
                         Dashboard
                       </Link>
                       <Link 
-                        href="/user/profile" 
+                        href="/account-settings" 
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => setIsUserMenuOpen(false)}
                       >
@@ -273,7 +285,7 @@ export default function Header() {
                   English
                 </button>
                 <button className="text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">
-                  中文 (Chinese)
+                  Chinese
                 </button>
                 <button className="text-left px-2 py-1 text-sm rounded-md text-gray-700 hover:bg-gray-100">
                   Bahasa Melayu
@@ -305,7 +317,7 @@ export default function Header() {
                       Dashboard
                     </Link>
                     <Link 
-                      href="/user/profile" 
+                      href="/account-settings" 
                       className="text-center px-4 py-2 text-sm rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200"
                       onClick={() => setIsMenuOpen(false)}
                     >
@@ -341,6 +353,18 @@ export default function Header() {
           </div>
         )}
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showLogoutConfirm}
+        title="Confirm Logout"
+        message="Are you sure you want to log out? You will need to sign in again to access your account."
+        confirmText="Logout"
+        cancelText="Cancel"
+        onConfirm={confirmLogout}
+        onCancel={cancelLogout}
+        type="warning"
+      />
     </header>
   );
 } 

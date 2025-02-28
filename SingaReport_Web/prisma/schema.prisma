@@ -12,15 +12,33 @@ datasource db {
 
 // 用户模型
 model User {
-  id        String    @id @default(uuid())
-  username  String    @unique
-  email     String    @unique
-  password  String    // 实际应用中应存储哈希值
-  name      String?
-  phone     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  reports   Report[]  // 用户创建的报告
+  id             String    @id @default(uuid())
+  username       String    @unique
+  email          String    @unique
+  password       String    // 实际应用中应存储哈希值
+  name           String?
+  phone          String?
+  avatar         String?   // 用户头像URL
+  bio            String?   // 个人简介
+  address        String?   // 地址
+  postalCode     String?   // 邮政编码
+  preferredLanguage String? @default("english") // 首选语言
+  
+  // 账户设置
+  notificationsEnabled Boolean @default(true)  // 是否启用通知
+  emailNotifications   Boolean @default(true)  // 电子邮件通知
+  pushNotifications    Boolean @default(false) // 推送通知
+  smsNotifications     Boolean @default(false) // 短信通知
+  twoFactorEnabled     Boolean @default(false) // 两因素认证
+  
+  // 用户状态
+  isActive        Boolean   @default(true)
+  emailVerified   Boolean   @default(false)
+  lastLogin       DateTime?
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  reports        Report[]  // 用户创建的报告
 }
 
 // 报告模型

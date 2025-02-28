@@ -1,4 +1,4 @@
-// 用户类型定义
+// User type definition
 export type User = {
   id: string;
   email: string;
@@ -9,13 +9,13 @@ export type User = {
   role?: string;
 };
 
-// 登录凭据类型
+// Login credentials type
 export type LoginCredentials = {
   email: string;
   password: string;
 };
 
-// 注册用户数据类型
+// Registration user data type
 export type RegisterUserData = {
   username: string;
   email: string;
@@ -24,12 +24,12 @@ export type RegisterUserData = {
   phone?: string;
 };
 
-// 用户简档类型（公开展示用）
+// User profile type (for public display)
 export type UserProfile = Omit<User, 'id'> & {
   joinDate: string;
 };
 
-// 认证令牌有效载荷类型
+// Authentication token payload type
 export type TokenPayload = {
   id: string;
   email: string;

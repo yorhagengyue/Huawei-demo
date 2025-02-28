@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     // Basic validation
     if (!email || !password) {
       return NextResponse.json(
-        { error: '邮箱和密码必填' },
+        { error: 'Email and password are required' },
         { status: 400 }
       );
     }
@@ -23,36 +23,36 @@ export async function POST(request: NextRequest) {
     
     if (!user) {
       return NextResponse.json(
-        { error: '邮箱或密码无效' },
+        { error: 'Invalid email or password' },
         { status: 401 }
       );
     }
 
-    // 创建JWT令牌
-    const token = createToken({
+    // 使用新的异步createToken方法创建JWT令牌
+    const token = await createToken({
       id: user.id,
       email: user.email,
       username: user.username
     });
 
-    // 设置cookie (可选)
+    // Set cookie (optional)
     const response = NextResponse.json(
       { 
         success: true,
-        message: '登录成功',
+        message: 'Login successful',
         user,
         token
       },
       { status: 200 }
     );
 
-    // 如果需要，设置HTTP-only cookie
+    // Set HTTP-only cookie if needed
     response.cookies.set({
       name: 'auth_token',
       value: token,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24, // 24小时
+      maxAge: 60 * 60 * 24, // 24 hours
       path: '/',
     });
 
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Login error:', error);
     return NextResponse.json(
-      { error: '服务器内部错误' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

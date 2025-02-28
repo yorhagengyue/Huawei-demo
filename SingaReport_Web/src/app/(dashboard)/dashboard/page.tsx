@@ -90,28 +90,14 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [activeSorting, setActiveSorting] = useState('newest');
 
-  // 确保用户已认证
+  // Ensure user is authenticated
   useEffect(() => {
-    // 首先检查认证状态
     checkAuth();
-    
-    // 如果用户未认证且加载完成，则重定向到登录页面
-    if (!isLoading && !isAuthenticated) {
-      router.replace('/login');
-    }
-  }, [isLoading, isAuthenticated, router, checkAuth]);
-
-  // 加载状态
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  // 如果未认证，返回null（页面会重定向）
-  if (!isAuthenticated) {
+  }, [checkAuth]);
+  
+  // If user is not authenticated and loading is complete, redirect to login page
+  if (!isAuthenticated && !isLoading) {
+    router.replace('/login');
     return null;
   }
 

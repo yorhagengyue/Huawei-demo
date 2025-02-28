@@ -2,20 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    // 创建响应
+    // Create response
     const response = NextResponse.json({
       success: true,
-      message: '注销成功'
+      message: 'Logout successful'
     });
 
-    // 清除auth_token cookie
+    // Clear auth_token cookie
     response.cookies.delete('auth_token');
 
     return response;
   } catch (error) {
-    console.error('注销出错:', error);
+    console.error('Logout error:', error);
     return NextResponse.json(
-      { error: '服务器内部错误' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
