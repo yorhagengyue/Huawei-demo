@@ -1,105 +1,175 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import WelcomePrompt from '@/components/welcome/WelcomePrompt';
+import { useAuth } from '@/contexts/AuthContext';
+import { FiMapPin, FiCheckCircle, FiAlertTriangle, FiInfo, FiArrowRight } from 'react-icons/fi';
 
 export default function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center">
-      {/* Hero Section */}
-      <section className="w-full bg-primary py-12 md:py-20">
-        <div className="container mx-auto px-4 text-center">
-          <h1 className="text-3xl md:text-5xl font-bold text-white mb-4">
-            SingaReport
-          </h1>
-          <p className="text-xl text-white/90 mb-8">
-            Report urban issues, track progress, and improve your community
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link 
-              href="/report/new" 
-              className="bg-white text-primary hover:bg-white/90 font-semibold px-6 py-3 rounded-lg text-lg transition-all"
-            >
-              Report an Issue
-            </Link>
-            <Link 
-              href="/map" 
-              className="bg-primary-foreground/10 text-white border border-white/30 hover:bg-primary-foreground/20 font-semibold px-6 py-3 rounded-lg text-lg transition-all"
-            >
-              View Active Reports
-            </Link>
-          </div>
-        </div>
-      </section>
+  const { user, isLoading } = useAuth();
+  const [isMapLoading, setIsMapLoading] = useState(true);
 
-      {/* Real-time Hotspot Map Preview */}
-      <section className="w-full py-12 bg-gray-50">
+  // Simulate map loading
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsMapLoading(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Categories for the feature section
+  const categories = [
+    {
+      icon: <FiAlertTriangle className="h-6 w-6 text-orange-500" />,
+      title: 'Infrastructure Issues',
+      description: 'Report potholes, damaged sidewalks, or street light outages'
+    },
+    {
+      icon: <FiMapPin className="h-6 w-6 text-blue-500" />,
+      title: 'Public Facilities',
+      description: 'Report issues with parks, public toilets, or communal areas'
+    },
+    {
+      icon: <FiCheckCircle className="h-6 w-6 text-green-500" />,
+      title: 'Environmental Concerns',
+      description: 'Report littering, pollution, or other environmental issues'
+    },
+    {
+      icon: <FiInfo className="h-6 w-6 text-purple-500" />,
+      title: 'Public Transport',
+      description: 'Report issues with bus stops, train stations, or service'
+    }
+  ];
+
+  // Success stories for the testimonial section
+  const successStories = [
+    {
+      title: 'Pothole Repair on Orchard Road',
+      description: 'A dangerous pothole was fixed within 3 days of reporting',
+      image: '/images/success-1.jpg'
+    },
+    {
+      title: 'Street Light Replacement',
+      description: 'Dark street corner now properly lit after community reports',
+      image: '/images/success-2.jpg'
+    },
+    {
+      title: 'Park Cleanup Initiative',
+      description: 'Local park restored after multiple littering reports',
+      image: '/images/success-3.jpg'
+    }
+  ];
+
+  return (
+    <main className="min-h-screen">
+      {/* First-time visitor prompt */}
+      <WelcomePrompt />
+      
+      {/* Hero Section - Personalized for logged in users */}
+      <section className="bg-gradient-to-b from-primary/5 to-white py-12 md:py-20">
         <div className="container mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">
-            Real-time Issue Hotspots
-          </h2>
-          <div className="bg-white shadow-lg rounded-xl overflow-hidden h-[400px] relative">
-            {/* Placeholder for map - would be replaced with actual map component */}
-            <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
-              <p className="text-gray-500 text-lg">Interactive Map Loading...</p>
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+              {!isLoading && user ? 
+                `Welcome back, ${user.name || user.username}!` : 
+                'Singapore Urban Issues Reporting Platform'}
+            </h1>
+            <p className="text-xl text-gray-600 mb-8">
+              {!isLoading && user ? 
+                'Continue making an impact in your community by reporting and tracking urban issues.' : 
+                'Report urban issues, track progress, and improve your community'}
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <Link
+                href="/report"
+                className="bg-primary text-white px-6 py-3 rounded-md hover:bg-primary/90 transition-colors font-medium flex items-center"
+              >
+                Report an Issue <FiArrowRight className="ml-2" />
+              </Link>
+              
+              {!isLoading && user ? (
+                <Link
+                  href="/dashboard"
+                  className="bg-white text-primary border border-primary px-6 py-3 rounded-md hover:bg-primary/5 transition-colors font-medium"
+                >
+                  View My Reports
+                </Link>
+              ) : (
+                <Link
+                  href="/map"
+                  className="bg-white text-primary border border-primary px-6 py-3 rounded-md hover:bg-primary/5 transition-colors font-medium"
+                >
+                  View Active Reports
+                </Link>
+              )}
             </div>
           </div>
-          <div className="mt-4 text-center">
-            <Link 
-              href="/map" 
-              className="text-primary hover:text-primary/80 font-medium"
-            >
-              Explore the full map →
-            </Link>
+        </div>
+      </section>
+
+      {/* Real-time map preview */}
+      <section className="py-12 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="max-w-5xl mx-auto">
+            <h2 className="text-3xl font-bold text-center mb-10">Real-time Hotspot Map</h2>
+            <div className="relative h-[400px] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 shadow-md">
+              {isMapLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                </div>
+              ) : (
+                <Image
+                  src="/images/map-preview.jpg"
+                  alt="Singapore issue map preview"
+                  fill
+                  className="object-cover"
+                />
+              )}
+              <div className="absolute bottom-4 right-4">
+                <Link
+                  href="/map"
+                  className="bg-white text-primary px-4 py-2 rounded-md shadow-md hover:bg-gray-50 transition-colors text-sm font-medium flex items-center"
+                >
+                  Open Full Map <FiArrowRight className="ml-1" />
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Service Categories */}
-      <section className="w-full py-12">
+      {/* Categories Section */}
+      <section className="py-12 bg-gray-50">
         <div className="container mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">
-            Report by Category
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {categories.map((category) => (
-              <Link 
-                key={category.id} 
-                href={`/report/new?category=${category.id}`}
-                className="bg-white hover:bg-gray-50 border border-gray-200 rounded-xl p-4 text-center transition-all group"
-              >
-                <div className="w-16 h-16 mx-auto mb-3 bg-primary/10 rounded-full flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
-                  <span className="text-2xl">{category.icon}</span>
-                </div>
-                <h3 className="font-medium text-gray-900">{category.name}</h3>
-                <p className="text-sm text-gray-500 mt-1">{category.description}</p>
-              </Link>
+          <h2 className="text-3xl font-bold text-center mb-10">What Can You Report?</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {categories.map((category, index) => (
+              <div key={index} className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow">
+                <div className="mb-4">{category.icon}</div>
+                <h3 className="text-xl font-semibold mb-2">{category.title}</h3>
+                <p className="text-gray-600">{category.description}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Success Stories */}
-      <section className="w-full py-12 bg-gray-50">
+      {/* Success Stories Section */}
+      <section className="py-12 bg-white">
         <div className="container mx-auto px-4">
-          <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">
-            Success Stories
-          </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {successStories.map((story) => (
-              <div key={story.id} className="bg-white rounded-xl overflow-hidden shadow-md">
-                <div className="h-48 relative">
-                  <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
-                    <p className="text-gray-500">Image Placeholder</p>
-                  </div>
+          <h2 className="text-3xl font-bold text-center mb-10">Success Stories</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {successStories.map((story, index) => (
+              <div key={index} className="bg-gray-50 rounded-lg overflow-hidden shadow-md">
+                <div className="relative h-48">
+                  <div className="absolute inset-0 bg-gray-200 animate-pulse"></div>
+                  {/* Image would be loaded here in production */}
                 </div>
-                <div className="p-4">
-                  <h3 className="font-semibold text-lg mb-2">{story.title}</h3>
-                  <p className="text-gray-600 text-sm mb-3">{story.description}</p>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">{story.location}</span>
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                      Resolved in {story.resolvedDays} days
-                    </span>
-                  </div>
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold mb-2">{story.title}</h3>
+                  <p className="text-gray-600">{story.description}</p>
                 </div>
               </div>
             ))}
@@ -107,67 +177,56 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Login/Register CTA */}
-      <section className="w-full py-12 bg-primary/10">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-2xl md:text-3xl font-bold mb-4">
-            Join SingaReport Community
-          </h2>
-          <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-            Create an account to track your reports, receive updates, and contribute to making Singapore better.
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link 
-              href="/login" 
-              className="bg-white text-primary border border-primary hover:bg-gray-50 font-semibold px-6 py-3 rounded-lg transition-all"
-            >
-              Login
-            </Link>
-            <Link 
-              href="/register" 
-              className="bg-primary text-white hover:bg-primary/90 font-semibold px-6 py-3 rounded-lg transition-all"
-            >
-              Register
-            </Link>
+      {/* Call to Action Based on Login Status */}
+      <section className="py-16 bg-primary/5">
+        <div className="container mx-auto px-4">
+          <div className="max-w-4xl mx-auto text-center">
+            {!isLoading && user ? (
+              <>
+                <h2 className="text-3xl font-bold mb-4">Continue Making an Impact</h2>
+                <p className="text-lg text-gray-600 mb-8">
+                  Your community engagement matters. Keep reporting issues and track their progress.
+                </p>
+                <div className="flex flex-wrap justify-center gap-4">
+                  <Link
+                    href="/report"
+                    className="bg-primary text-white px-6 py-3 rounded-md hover:bg-primary/90 transition-colors font-medium"
+                  >
+                    Submit New Report
+                  </Link>
+                  <Link
+                    href="/dashboard"
+                    className="bg-white text-primary border border-primary px-6 py-3 rounded-md hover:bg-primary/5 transition-colors font-medium"
+                  >
+                    View Dashboard
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl font-bold mb-4">Join Our Community</h2>
+                <p className="text-lg text-gray-600 mb-8">
+                  Create an account to report issues, track progress, and help improve Singapore.
+                </p>
+                <div className="flex flex-wrap justify-center gap-4">
+                  <Link
+                    href="/register"
+                    className="bg-primary text-white px-6 py-3 rounded-md hover:bg-primary/90 transition-colors font-medium"
+                  >
+                    Register Now
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="bg-white text-primary border border-primary px-6 py-3 rounded-md hover:bg-primary/5 transition-colors font-medium"
+                  >
+                    Login
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </section>
     </main>
   );
-}
-
-// Sample data for the page
-const categories = [
-  { id: 'roads', name: 'Road Issues', icon: '🛣️', description: 'Potholes, roadblocks, traffic lights' },
-  { id: 'cleanliness', name: 'Cleanliness', icon: '🧹', description: 'Littering, public cleaning' },
-  { id: 'facilities', name: 'Public Facilities', icon: '🏛️', description: 'Damaged facilities, maintenance' },
-  { id: 'safety', name: 'Safety Concerns', icon: '⚠️', description: 'Hazards, dangerous conditions' },
-  { id: 'environment', name: 'Environment', icon: '🌳', description: 'Parks, green spaces, trees' },
-  { id: 'noise', name: 'Noise Issues', icon: '🔊', description: 'Noise pollution, disturbances' },
-  { id: 'construction', name: 'Construction', icon: '🏗️', description: 'Construction sites, violations' },
-  { id: 'others', name: 'Others', icon: '📋', description: 'Other urban issues' },
-];
-
-const successStories = [
-  {
-    id: 1,
-    title: 'Pothole Repair on Orchard Road',
-    description: 'A dangerous pothole was reported and repaired within days, preventing potential accidents.',
-    location: 'Orchard Road',
-    resolvedDays: 3
-  },
-  {
-    id: 2,
-    title: 'Streetlight Restoration at Tampines',
-    description: 'Dark pathway was illuminated after community reporting, improving neighborhood safety.',
-    location: 'Tampines Ave 5',
-    resolvedDays: 2
-  },
-  {
-    id: 3,
-    title: 'Playground Maintenance',
-    description: 'Damaged playground equipment was fixed after being reported by concerned parents.',
-    location: 'Bishan Park',
-    resolvedDays: 5
-  }
-]; 
+} 

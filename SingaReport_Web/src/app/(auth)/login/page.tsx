@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { user, isLoading: authLoading, checkAuth } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -13,6 +15,17 @@ export default function LoginPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // 检查用户是否已登录，如果已登录则重定向到仪表板
+  useEffect(() => {
+    // 确保立即检查一次认证状态
+    checkAuth();
+    
+    // 如果用户已登录，重定向到仪表板
+    if (user && !authLoading) {
+      router.replace('/dashboard');
+    }
+  }, [user, authLoading, router, checkAuth]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -46,8 +59,14 @@ export default function LoginPage() {
         throw new Error(data.error || 'Login failed');
       }
       
-      // Success - redirect to dashboard
-      router.push('/dashboard');
+      // 登录成功后执行检查认证操作
+      await checkAuth();
+      
+      // 延迟后再重定向，确保状态已更新
+      setTimeout(() => {
+        // Success - redirect to dashboard
+        router.push('/dashboard');
+      }, 500);
     } catch (err: any) {
       console.error('Login error:', err);
       setError(err.message || 'Invalid email or password. Please try again.');
@@ -56,6 +75,21 @@ export default function LoginPage() {
     }
   };
 
+  // 如果认证状态正在加载，显示加载中
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex justify-center items-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // 如果用户已登录，页面将在useEffect中重定向，这里不需要渲染
+  if (user) {
+    return null;
+  }
+
+  // 只有用户未登录时才渲染登录表单
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">

@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 
 // Sample data for development
@@ -82,9 +84,36 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export default function Dashboard() {
+export default function DashboardPage() {
+  const router = useRouter();
+  const { user, isLoading, isAuthenticated, checkAuth } = useAuth();
   const [activeTab, setActiveTab] = useState('all');
   const [activeSorting, setActiveSorting] = useState('newest');
+
+  // 确保用户已认证
+  useEffect(() => {
+    // 首先检查认证状态
+    checkAuth();
+    
+    // 如果用户未认证且加载完成，则重定向到登录页面
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/login');
+    }
+  }, [isLoading, isAuthenticated, router, checkAuth]);
+
+  // 加载状态
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // 如果未认证，返回null（页面会重定向）
+  if (!isAuthenticated) {
+    return null;
+  }
 
   // Filter reports based on active tab
   const filteredReports = SAMPLE_REPORTS.filter(report => {

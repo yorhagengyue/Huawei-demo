@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 import Header from '@/components/common/Header';
 import Footer from '@/components/common/Footer';
@@ -8,8 +9,8 @@ import Footer from '@/components/common/Footer';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'SingaReport - Smart City Citizen Engagement',
-  description: 'Report urban issues, track progress, and improve your community with SingaReport',
+  title: 'SingaReport - Smart Urban Feedback System',
+  description: 'Singapore Smart Urban Feedback System, empowering citizens to participate in urban development',
 };
 
 export default function RootLayout({
@@ -20,13 +21,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <div className="flex flex-col min-h-screen">
-          <Header />
-          <main className="flex-grow">
-            {children}
-          </main>
-          <Footer />
-        </div>
+        <AuthProvider>
+          <div className="flex flex-col min-h-screen">
+            <Header />
+            <main className="flex-grow">
+              {children}
+            </main>
+            <Footer />
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );
