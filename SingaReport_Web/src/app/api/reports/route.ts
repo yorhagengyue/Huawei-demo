@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     // 解析请求数据
     const body = await request.json();
-    const { title, description, category, location, latitude, longitude, mediaUrls } = body;
+    const { title, description, category, location, latitude, longitude, mediaUrls, isDemo } = body;
 
     // 基本验证
     if (!title || !description || !category) {
@@ -107,12 +107,14 @@ export async function POST(request: NextRequest) {
         latitude: latitude ? parseFloat(latitude) : null,
         longitude: longitude ? parseFloat(longitude) : null,
         userId: user.id,
+        isDemo: isDemo === 'true' || isDemo === true,
         // 如果有媒体文件，创建关联
         ...(mediaUrls && mediaUrls.length > 0 && {
           media: {
             create: mediaUrls.map((url: string) => ({
               type: url.toLowerCase().endsWith('.mp4') ? 'video' : 'image',
-              url
+              url,
+              isDemo: isDemo === 'true' || isDemo === true
             }))
           }
         })

@@ -22,7 +22,11 @@ model User {
   bio            String?   // 个人简介
   address        String?   // 地址
   postalCode     String?   // 邮政编码
-  preferredLanguage String? @default("english") // 首选语言
+
+  // 新加坡特定字段
+  preferredLanguage String? @default("english") // 首选语言: english, chinese, malay, tamil
+  residentialStatus String? // 居住状态: citizen, pr, work_pass, dependent_pass 等
+  singaporePostalCode String? // 新加坡邮编(6位数字)
   
   // 账户设置
   notificationsEnabled Boolean @default(true)  // 是否启用通知
@@ -39,6 +43,8 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   reports        Report[]  // 用户创建的报告
+  uploadLogs     UploadLog[] // 用户的上传日志
+  files          File[]    // 用户上传的文件
 }
 
 // 报告模型
@@ -60,6 +66,7 @@ model Report {
   
   // 报告的媒体文件
   media       Media[]
+  files       File[]    // 报告关联的文件
 }
 
 // 媒体文件模型
@@ -72,4 +79,105 @@ model Media {
   // 关联到报告
   reportId  String
   report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+// 文件模型(新增)
+model File {
+  id            String   @id @default(uuid())
+  fileName      String
+  fileSize      Int
+  fileType      String
+  contentType   String
+  storageType   String   @default("local") // local, huawei_obs, etc.
+  storagePath   String   // 存储路径
+  publicUrl     String?  // 公共访问URL
+  checksum      String?  // 文件校验和
+  status        String   @default("active") // active, deleted, quarantined
+  
+  // 内容安全
+  scanStatus    String?  // clean, infected, pending
+  scanResult    String?  // 扫描结果详情
+  
+  // 关联
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  reportId      String?
+  report        Report?  @relation(fields: [reportId], references: [id])
+  
+  // 审计和元数据
+  metadata      Json?    // 额外元数据
+  tags          String[] 
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+  
+  // 关联上传日志
+  uploadLog     UploadLog?
+}
+
+// 上传日志模型(新增 - 符合新加坡审计要求)
+model UploadLog {
+  id            String   @id @default(uuid())
+  
+  // 上传文件信息
+  fileId        String?  @unique // 可能为null表示上传失败
+  file          File?    @relation(fields: [fileId], references: [id])
+  originalName  String   // 原始文件名
+  fileSize      Int
+  fileType      String
+  
+  // 操作者信息
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  ipAddress     String
+  userAgent     String
+  
+  // 上传状态
+  status        String   // SUCCESS, FAILED, REJECTED_SIZE, REJECTED_TYPE, etc.
+  errorMessage  String?  // 如果失败，错误消息
+  
+  // PDPA合规信息
+  containsPII   Boolean  @default(false) // 是否包含个人身份信息
+  dataConsent   Boolean  @default(false) // 用户是否同意数据处理
+  
+  // 新加坡特定审计信息
+  requestId     String?  // 关联的请求ID
+  processingTime Int?     // 处理时间(毫秒)
+  sourceSystem  String?  // 来源系统
+  destinationSystem String? // 目标系统
+  
+  // 时间戳
+  createdAt     DateTime @default(now())
+  
+  // 元数据
+  metadata      Json?
+}
+
+// 文件扫描结果(新增 - 安全检查)
+model FileScanResult {
+  id            String   @id @default(uuid())
+  fileId        String   @unique
+  scanProvider  String   // 扫描提供商(例如:IMDA认证的扫描服务)
+  scanDate      DateTime
+  status        String   // clean, infected, suspicious
+  threatDetails Json?
+  quarantined   Boolean  @default(false)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 文件访问日志(新增 - 访问审计)
+model FileAccessLog {
+  id            String   @id @default(uuid())
+  fileId        String
+  userId        String?  // 可能为匿名访问
+  ipAddress     String
+  userAgent     String
+  accessType    String   // view, download, share
+  accessTime    DateTime @default(now())
+  
+  // 新加坡特定字段
+  geoLocation   String?  // 地理位置
+  isSuspicious  Boolean  @default(false) // 是否可疑访问
 } 

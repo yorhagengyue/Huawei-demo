@@ -126,9 +126,14 @@ export default function Header() {
               Report Issue
             </Link>
             {user && (
-              <Link href="/dashboard" className="text-gray-600 hover:text-primary">
-                My Reports
-              </Link>
+              <>
+                <Link href="/dashboard" className="text-gray-600 hover:text-primary">
+                  My Reports
+                </Link>
+                <Link href="/files" className="text-gray-600 hover:text-primary">
+                  File Manager
+                </Link>
+              </>
             )}
             <Link href="/help" className="text-gray-600 hover:text-primary">
               Help Center
@@ -196,6 +201,13 @@ export default function Header() {
                         Dashboard
                       </Link>
                       <Link 
+                        href="/files" 
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        File Manager
+                      </Link>
+                      <Link 
                         href="/account-settings" 
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => setIsUserMenuOpen(false)}
@@ -260,13 +272,22 @@ export default function Header() {
                 Report Issue
               </Link>
               {user && (
-                <Link 
-                  href="/dashboard" 
-                  className="text-gray-600 hover:text-primary"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  My Reports
-                </Link>
+                <>
+                  <Link 
+                    href="/dashboard" 
+                    className="text-gray-600 hover:text-primary"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    My Reports
+                  </Link>
+                  <Link 
+                    href="/files" 
+                    className="text-gray-600 hover:text-primary"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    File Manager
+                  </Link>
+                </>
               )}
               <Link 
                 href="/help" 
@@ -322,6 +343,15 @@ export default function Header() {
                       onClick={() => setIsMenuOpen(false)}
                     >
                       Account
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 mt-2">
+                    <Link 
+                      href="/files" 
+                      className="text-center px-4 py-2 text-sm rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      File Manager
                     </Link>
                   </div>
                   <button 
