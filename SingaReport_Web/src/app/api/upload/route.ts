@@ -123,6 +123,7 @@ async function createFileRecord(fileData: {
   fileSize: number,
   fileType: string,
   reportId?: string,
+  isDemo?: boolean,
   metadata?: any
 }) {
   try {
@@ -139,7 +140,8 @@ async function createFileRecord(fileData: {
         reportId: fileData.reportId,
         metadata: fileData.metadata || {},
         scanStatus: 'pending',
-        tags: []
+        tags: [],
+        isDemo: fileData.isDemo || false
       }
     });
     
@@ -181,6 +183,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File | null;
     const reportId = formData.get('reportId') as string | null;
     const dataConsent = formData.get('dataConsent') === 'true'; // PDPA同意
+    const isDemo = formData.get('isDemo') === 'true'; // 是否为演示数据
     
     // 4. 基本验证
     if (!file) {
@@ -283,6 +286,7 @@ export async function POST(request: NextRequest) {
       fileSize: file.size,
       fileType: file.type,
       reportId: reportId || undefined,
+      isDemo,
       metadata
     });
     

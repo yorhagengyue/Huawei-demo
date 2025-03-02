@@ -3,14 +3,14 @@ import { prisma } from '@/lib/db/prisma';
 import { verifyToken } from '@/lib/auth/jwt-utils';
 
 /**
- * 解析查询参数
+ * Parse query parameters
  */
 function parseQueryParams(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   
   return {
     page: parseInt(searchParams.get('page') || '1', 10),
-    limit: Math.min(parseInt(searchParams.get('limit') || '10', 10), 50), // 最大50条
+    limit: Math.min(parseInt(searchParams.get('limit') || '10', 10), 50), // Maximum 50 items
     sortBy: searchParams.get('sortBy') || 'createdAt',
     sortOrder: searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc',
     fileType: searchParams.get('fileType') || undefined,
@@ -23,7 +23,7 @@ function parseQueryParams(request: NextRequest) {
 }
 
 /**
- * 获取用户有权访问的文件列表
+ * Get files accessible to the user
  */
 async function getUserAccessibleFiles(
   userId: string,
@@ -32,23 +32,12 @@ async function getUserAccessibleFiles(
   pagination: any,
   sorting: any
 ) {
-  // 构建基本查询条件
+  // Build basic query conditions
   const where: any = {};
   
-  // 如果不是管理员，只能查看自己的文件以及有权访问的报告文件
+  // If not an admin, can only view own files and files from reports they have access to
   if (userRole !== 'ADMIN') {
     if (filters.reportId) {
-      // 如果指定了reportId，检查用户是否有权访问该报告
-      // TODO: 需要实现报告权限检查逻辑
-      // const hasReportAccess = await checkReportAccess(filters.reportId, userId);
-      // if (hasReportAccess) {
-      //   where.reportId = filters.reportId;
-      // } else {
-      //   // 如果没有报告访问权限，只能看到自己的文件
-      //   where.userId = userId;
-      // }
-      
-      // 暂时简化处理：只显示自己创建的报告文件
       where.OR = [
         { userId },
         { 
@@ -59,15 +48,15 @@ async function getUserAccessibleFiles(
         }
       ];
     } else {
-      // 没有指定报告ID，只能看自己的文件
+      // No report ID specified, can only see own files
       where.userId = userId;
     }
   } else if (filters.reportId) {
-    // 管理员且指定了reportId
+    // Admin and reportId specified
     where.reportId = filters.reportId;
   }
   
-  // 添加其他筛选条件
+  // Add other filter conditions
   if (filters.fileType) {
     where.fileType = filters.fileType;
   }
@@ -75,7 +64,7 @@ async function getUserAccessibleFiles(
   if (filters.status) {
     where.status = filters.status;
   } else {
-    // 默认不显示已删除的文件
+    // Default to not showing deleted files
     where.status = { not: 'DELETED' };
   }
   
@@ -87,7 +76,7 @@ async function getUserAccessibleFiles(
     ];
   }
   
-  // 日期范围筛选
+  // Date range filtering
   if (filters.startDate || filters.endDate) {
     where.createdAt = {};
     
@@ -100,55 +89,96 @@ async function getUserAccessibleFiles(
     }
   }
   
-  // 执行查询
-  const [files, totalCount] = await Promise.all([
-    prisma.file.findMany({
-      where,
-      select: {
-        id: true,
-        fileName: true,
-        fileSize: true,
-        fileType: true,
-        contentType: true,
-        createdAt: true,
-        updatedAt: true,
-        scanStatus: true,
-        downloadCount: true,
-        status: true,
-        tags: true,
-        reportId: true,
-        lastDownloadedAt: true,
-        user: {
-          select: {
-            id: true,
-            username: true,
-          }
-        }
-      },
-      orderBy: { [sorting.sortBy]: sorting.sortOrder },
-      skip: (pagination.page - 1) * pagination.limit,
-      take: pagination.limit,
-    }),
-    prisma.file.count({ where })
-  ]);
-  
-  return {
-    files,
-    pagination: {
-      page: pagination.page,
-      limit: pagination.limit,
-      totalItems: totalCount,
-      totalPages: Math.ceil(totalCount / pagination.limit)
+  try {
+    // Check if Prisma client is available
+    if (!prisma) {
+      console.error('Prisma client is undefined');
+      throw new Error('Database connection not initialized');
     }
-  };
+    
+    // 获取文件列表和总数
+    const [files, totalCount] = await Promise.all([
+      prisma.file.findMany({
+        where,
+        select: {
+          id: true,
+          fileName: true,
+          fileSize: true,
+          fileType: true,
+          contentType: true,
+          createdAt: true,
+          updatedAt: true,
+          scanStatus: true,
+          downloadCount: true,
+          status: true,
+          tags: true,
+          reportId: true,
+          lastDownloadedAt: true,
+          user: {
+            select: {
+              id: true,
+              username: true
+            }
+          },
+        },
+        orderBy: { [sorting.sortBy]: sorting.sortOrder },
+        skip: (pagination.page - 1) * pagination.limit,
+        take: pagination.limit,
+      }),
+      prisma.file.count({ where })
+    ]);
+    
+    // Query metadata for each file
+    const filesWithMetadata = await Promise.all(
+      files.map(async (file) => {
+        // Query metadata for the file
+        const fileMetadata = await prisma.file.findUnique({
+          where: { id: file.id },
+          select: { metadata: true, isDemo: true },
+        });
+        
+        // Get download and view URLs
+        const downloadUrl = `/api/files/${file.id}/download`;
+        const viewUrl = `/api/files/${file.id}/view`;
+        
+        // Check if the user can edit and delete the file
+        const canDelete = userRole === 'ADMIN' || (userId === file.user.id);
+        const canEdit = userRole === 'ADMIN' || (userId === file.user.id);
+        
+        // Return the file with additional information
+        return {
+          ...file,
+          isDemo: fileMetadata?.isDemo || false,
+          metadata: fileMetadata?.metadata || {},
+          downloadUrl,
+          viewUrl,
+          canDelete,
+          canEdit,
+        };
+      })
+    );
+    
+    return {
+      files: filesWithMetadata,
+      pagination: {
+        page: pagination.page,
+        limit: pagination.limit,
+        totalItems: totalCount,
+        totalPages: Math.ceil(totalCount / pagination.limit)
+      }
+    };
+  } catch (error) {
+    console.error('Error executing Prisma query:', error);
+    throw error;
+  }
 }
 
 /**
- * 处理文件列表请求
+ * Handle file list request
  */
 export async function GET(request: NextRequest) {
   try {
-    // 1. 身份验证
+    // 1. Authentication
     const token = request.cookies.get('auth_token')?.value;
     if (!token) {
       return NextResponse.json(
@@ -157,6 +187,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    console.log('Verifying token:', token.substring(0, 10) + '...');
     const user = await verifyToken(token);
     if (!user) {
       return NextResponse.json(
@@ -165,7 +196,9 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // 2. 解析查询参数
+    console.log('Token verified successfully, user:', user.email);
+    
+    // 2. Parse query parameters
     const {
       page,
       limit,
@@ -179,61 +212,68 @@ export async function GET(request: NextRequest) {
       status
     } = parseQueryParams(request);
     
-    // 3. 验证和清理排序字段
+    // 3. Validate and clean sort fields
     const validSortFields = ['createdAt', 'updatedAt', 'fileSize', 'fileName', 'downloadCount'];
     const actualSortBy = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
     
-    // 4. 获取文件列表
-    const result = await getUserAccessibleFiles(
-      user.id,
-      user.role,
-      { fileType, search, startDate, endDate, reportId, status },
-      { page, limit },
-      { sortBy: actualSortBy, sortOrder }
-    );
-    
-    // 5. 文件处理和权限过滤
-    const processedFiles = result.files.map(file => {
-      // 添加文件访问URL
-      return {
-        ...file,
-        downloadUrl: `/api/files/${file.id}/download`,
-        viewUrl: `/api/files/${file.id}`,
-        canEdit: file.user.id === user.id || user.role === 'ADMIN',
-        canDelete: file.user.id === user.id || user.role === 'ADMIN'
-      };
-    });
-    
-    // 6. 返回结果
-    return NextResponse.json({
-      files: processedFiles,
-      pagination: result.pagination,
-      filters: {
-        fileType,
-        search,
-        startDate,
-        endDate,
-        reportId,
-        status
-      },
-      sorting: {
-        sortBy: actualSortBy,
-        sortOrder
-      }
-    });
-    
+    try {
+      // 4. Get file list
+      const result = await getUserAccessibleFiles(
+        user.id,
+        user.role,
+        { fileType, search, startDate, endDate, reportId, status },
+        { page, limit },
+        { sortBy: actualSortBy, sortOrder }
+      );
+      
+      // 5. File processing and permission filtering
+      const processedFiles = result.files.map(file => {
+        // Add file access URLs
+        return {
+          ...file,
+          downloadUrl: `/api/files/${file.id}/download`,
+          viewUrl: `/api/files/${file.id}`,
+          canEdit: file.user.id === user.id || user.role === 'ADMIN',
+          canDelete: file.user.id === user.id || user.role === 'ADMIN'
+        };
+      });
+      
+      // 6. Return results
+      return NextResponse.json({
+        files: processedFiles,
+        pagination: result.pagination,
+        filters: {
+          fileType,
+          search,
+          startDate,
+          endDate,
+          reportId,
+          status
+        },
+        sorting: {
+          sortBy: actualSortBy,
+          sortOrder
+        }
+      });
+    } catch (dbError) {
+      console.error('Error fetching file list:', dbError);
+      return NextResponse.json(
+        { error: 'Database error occurred while fetching files', details: dbError.message },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error('Error fetching file list:', error);
+    console.error('Error in GET route handler:', error);
     
     return NextResponse.json(
-      { error: 'Server error occurred while fetching files' },
+      { error: 'Server error occurred while processing your request', details: error.message },
       { status: 500 }
     );
   }
 }
 
 /**
- * 处理预检请求，配置CORS
+ * Handle preflight requests, configure CORS
  */
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {

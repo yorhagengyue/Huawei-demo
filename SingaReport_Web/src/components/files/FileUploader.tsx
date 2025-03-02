@@ -27,13 +27,14 @@ import {
 type FileUploadStatus = 'idle' | 'uploading' | 'success' | 'error';
 
 interface FileUploaderProps {
+  onError?: (error: string) => void;
   reportId?: string;
-  onSuccess?: (fileId: string, fileData: any) => void;
-  onError?: (error: Error) => void;
-  maxSize?: number; // 默认10MB
-  allowedTypes?: string[];
-  multiple?: boolean;
   className?: string;
+  multiple?: boolean;
+  maxSize?: number; // Default 10MB
+  allowedTypes?: string[];
+  onSuccess?: (fileId: string, fileData: any) => void;
+  isDevelopment?: boolean; // 添加开发模式参数，用于显示Demo数据选项
 }
 
 export default function FileUploader({
@@ -43,23 +44,25 @@ export default function FileUploader({
   maxSize = 10 * 1024 * 1024, // 10MB
   allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'],
   multiple = false,
-  className = ''
+  className = '',
+  isDevelopment = process.env.NODE_ENV === 'development' // 默认在开发模式下允许设置演示数据
 }: FileUploaderProps) {
-  // 状态管理
+  // State management
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadStatus, setUploadStatus] = useState<FileUploadStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [dataConsent, setDataConsent] = useState<boolean>(false);
+  const [isDemo, setIsDemo] = useState<boolean>(false); // 添加是否为演示数据的状态
   const [uploadResponse, setUploadResponse] = useState<any>(null);
   const [isPrivacyDialogOpen, setIsPrivacyDialogOpen] = useState<boolean>(false);
   
-  // 引用
+  // References
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   
-  // 清除选中文件
+  // Clear selected files
   const clearFiles = useCallback(() => {
     setFiles([]);
     setError(null);
@@ -70,7 +73,7 @@ export default function FileUploader({
     }
   }, []);
   
-  // 文件选择处理
+  // File selection handling
   const handleFileSelect = useCallback((selectedFiles: FileList | null) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
     
@@ -78,19 +81,19 @@ export default function FileUploader({
     let hasError = false;
     let errorMsg = '';
     
-    // 验证所选文件
+    // Validate selected files
     Array.from(selectedFiles).forEach(file => {
-      // 检查文件大小
+      // Check file size
       if (file.size > maxSize) {
         hasError = true;
-        errorMsg = `文件 ${file.name} 太大。最大允许大小为 ${maxSize / (1024 * 1024)}MB。`;
+        errorMsg = `File ${file.name} is too large. Maximum allowed size is ${maxSize / (1024 * 1024)}MB.`;
         return;
       }
       
-      // 检查文件类型
+      // Check file type
       if (allowedTypes.length > 0 && !allowedTypes.includes(file.type)) {
         hasError = true;
-        errorMsg = `文件 ${file.name} 类型不支持。允许的类型: ${allowedTypes.join(', ')}`;
+        errorMsg = `File ${file.name} type not supported. Allowed types: ${allowedTypes.join(', ')}`;
         return;
       }
       
@@ -102,7 +105,7 @@ export default function FileUploader({
       return;
     }
     
-    // 更新文件列表
+    // Update file list
     if (multiple) {
       setFiles(prev => [...prev, ...newFiles]);
     } else {
@@ -113,17 +116,17 @@ export default function FileUploader({
     setUploadStatus('idle');
   }, [allowedTypes, maxSize, multiple]);
   
-  // 文件选择器点击
+  // File input click handler
   const handleFileInputClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
   
-  // 文件输入变化
+  // File input change handler
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     handleFileSelect(e.target.files);
   }, [handleFileSelect]);
   
-  // 拖放事件处理
+  // Drag and drop event handling
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -149,10 +152,10 @@ export default function FileUploader({
     handleFileSelect(e.dataTransfer.files);
   }, [handleFileSelect]);
   
-  // 文件上传处理
+  // File upload handling
   const uploadFile = useCallback(async () => {
     if (files.length === 0) {
-      setError('请选择要上传的文件。');
+      setError('Please select files to upload.');
       return;
     }
     
@@ -165,7 +168,7 @@ export default function FileUploader({
       setUploadStatus('uploading');
       setUploadProgress(0);
       
-      // 模拟上传进度
+      // Simulate upload progress
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 95) {
@@ -176,7 +179,7 @@ export default function FileUploader({
         });
       }, 200);
       
-      // 准备表单数据
+      // Prepare form data
       const formData = new FormData();
       formData.append('file', files[0]);
       
@@ -185,52 +188,53 @@ export default function FileUploader({
       }
       
       formData.append('dataConsent', dataConsent.toString());
+      formData.append('isDemo', isDemo.toString()); // 添加是否为演示数据的字段
       
-      // 发送上传请求
+      // Send upload request
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
-        credentials: 'include', // 包含cookies用于身份验证
+        credentials: 'include', // Include cookies for identity verification
       });
       
       clearInterval(progressInterval);
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || '上传失败');
+        throw new Error(errorData.error || 'Upload failed');
       }
       
-      // 上传成功
+      // Upload successful
       setUploadProgress(100);
       setUploadStatus('success');
       
       const responseData = await response.json();
       setUploadResponse(responseData);
       
-      // 调用成功回调
+      // Call success callback
       if (onSuccess) {
         onSuccess(responseData.fileId, responseData);
       }
       
-      // 3秒后刷新状态
+      // Refresh status after 3 seconds
       setTimeout(() => {
-        if (uploadStatus === 'success') { // 检查是否仍处于成功状态
+        if (uploadStatus === 'success') { // Check if still in success state
           clearFiles();
         }
       }, 3000);
       
     } catch (err) {
       setUploadStatus('error');
-      const errorMessage = err instanceof Error ? err.message : '上传过程中发生错误';
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred during upload';
       setError(errorMessage);
       
       if (onError && err instanceof Error) {
-        onError(err);
+        onError(errorMessage);
       }
     }
-  }, [files, dataConsent, reportId, onSuccess, onError, clearFiles, uploadStatus]);
+  }, [files, dataConsent, reportId, onSuccess, onError, clearFiles, uploadStatus, isDemo]);
   
-  // 文件大小格式化
+  // File size formatting
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -241,7 +245,7 @@ export default function FileUploader({
   
   return (
     <div className={`w-full ${className}`}>
-      {/* 隐藏的文件输入 */}
+      {/* Hidden file input */}
       <input
         type="file"
         ref={fileInputRef}
@@ -251,7 +255,7 @@ export default function FileUploader({
         onChange={handleFileInputChange}
       />
       
-      {/* 拖放区域 */}
+      {/* Drag and drop area */}
       <div
         ref={dropZoneRef}
         className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center transition-colors duration-200 ease-in-out cursor-pointer"
@@ -264,10 +268,10 @@ export default function FileUploader({
           <>
             <Upload className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">
-              <span className="text-primary">点击上传</span> 或拖放文件
+              <span className="text-primary">Click to upload</span> or drag and drop files
             </h3>
             <p className="mt-1 text-xs text-gray-500">
-              {allowedTypes.map(type => type.replace('image/', '').replace('application/', '')).join(', ')} (最大 {maxSize / (1024 * 1024)}MB)
+              {allowedTypes.map(type => type.replace('image/', '').replace('application/', '')).join(', ')} (Maximum {maxSize / (1024 * 1024)}MB)
             </p>
           </>
         ) : (
@@ -299,7 +303,7 @@ export default function FileUploader({
         )}
       </div>
       
-      {/* 数据隐私同意 */}
+      {/* Data privacy consent */}
       <div className="mt-4 flex items-center space-x-2">
         <Checkbox
           id="dataConsent"
@@ -311,12 +315,29 @@ export default function FileUploader({
             htmlFor="dataConsent"
             className="text-sm text-gray-700 cursor-pointer"
           >
-            我确认此文件符合新加坡《个人数据保护法》(PDPA)要求，且不包含未经授权的个人身份信息
+            I confirm that this file complies with the Singapore Personal Data Protection Act (PDPA) and does not contain unauthorized personal information
           </Label>
         </div>
       </div>
       
-      {/* 上传按钮和进度 */}
+      {/* Demo data option - only visible in development mode */}
+      {isDevelopment && (
+        <div className="flex items-center space-x-2 mt-2">
+          <Checkbox 
+            id="isDemo" 
+            checked={isDemo}
+            onCheckedChange={(checked) => setIsDemo(checked === true)}
+          />
+          <label 
+            htmlFor="isDemo" 
+            className="text-sm text-amber-700 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          >
+            Mark as demo data (for development purposes only)
+          </label>
+        </div>
+      )}
+      
+      {/* Upload button and progress */}
       <div className="mt-4 space-y-4">
         {uploadStatus === 'idle' && (
           <Button
@@ -324,14 +345,14 @@ export default function FileUploader({
             disabled={files.length === 0 || !dataConsent}
             className="w-full"
           >
-            上传文件
+            Upload file
           </Button>
         )}
         
         {uploadStatus === 'uploading' && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">上传中...</span>
+              <span className="text-sm text-gray-500">Uploading...</span>
               <span className="text-sm font-medium">{uploadProgress}%</span>
             </div>
             <Progress value={uploadProgress} className="h-2" />
@@ -341,9 +362,9 @@ export default function FileUploader({
         {uploadStatus === 'success' && (
           <Alert variant="success">
             <Check className="h-4 w-4" />
-            <AlertTitle>上传成功</AlertTitle>
+            <AlertTitle>Upload successful</AlertTitle>
             <AlertDescription>
-              您的文件已成功上传。
+              Your file has been successfully uploaded.
             </AlertDescription>
           </Alert>
         )}
@@ -351,55 +372,55 @@ export default function FileUploader({
         {uploadStatus === 'error' && error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>上传失败</AlertTitle>
+            <AlertTitle>Upload failed</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
       </div>
       
-      {/* 数据隐私对话框 */}
+      {/* Data privacy dialog */}
       <Dialog open={isPrivacyDialogOpen} onOpenChange={setIsPrivacyDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>数据隐私确认</DialogTitle>
+            <DialogTitle>Data Privacy Confirmation</DialogTitle>
             <DialogDescription>
-              根据新加坡《个人数据保护法》(PDPA)，在上传前请确认：
+              Please confirm before uploading:
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <h4 className="font-medium">上传前请确认：</h4>
+              <h4 className="font-medium">Please confirm:</h4>
               <ul className="list-disc pl-5 space-y-1 text-sm">
-                <li>您拥有上传此文件的合法权利</li>
-                <li>文件不包含未经授权的个人身份信息</li>
-                <li>如包含个人数据，您已获得相关方同意</li>
-                <li>您了解此文件将被存储并可能被扫描</li>
+                <li>You have the legal right to upload this file</li>
+                <li>The file does not contain unauthorized personal information</li>
+                <li>If it contains personal data, you have obtained consent from the relevant party</li>
+                <li>You understand that this file will be stored and may be scanned</li>
               </ul>
             </div>
             
             <Alert>
               <FileText className="h-4 w-4" />
-              <AlertTitle>重要提示</AlertTitle>
+              <AlertTitle>Important Note</AlertTitle>
               <AlertDescription>
-                上传敏感信息可能违反新加坡法律。请确保您的文件符合当地法规要求。
+                Uploading sensitive information may violate Singapore law. Please ensure your file complies with local regulations.
               </AlertDescription>
             </Alert>
           </div>
           
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="secondary">取消</Button>
+              <Button variant="secondary">Cancel</Button>
             </DialogClose>
             <Button
               onClick={() => {
                 setDataConsent(true);
                 setIsPrivacyDialogOpen(false);
-                // 确认后继续上传
+                // Continue upload after confirmation
                 setTimeout(uploadFile, 100);
               }}
             >
-              我确认并继续
+              I confirm and continue
             </Button>
           </DialogFooter>
         </DialogContent>

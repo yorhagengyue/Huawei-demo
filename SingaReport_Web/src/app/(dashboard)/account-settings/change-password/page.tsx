@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function ChangePasswordPage() {
   const { isLoading: authLoading } = useAuth();
@@ -16,6 +17,42 @@ export default function ChangePasswordPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState({
+    score: 0,
+    hasMinLength: false,
+    hasUpperCase: false,
+    hasLowerCase: false, 
+    hasNumber: false,
+    hasSpecialChar: false
+  });
+
+  // Check password strength
+  const checkPasswordStrength = (password: string) => {
+    const hasMinLength = password.length >= 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecialChar = /[^A-Za-z0-9]/.test(password);
+    
+    let score = 0;
+    if (hasMinLength) score++;
+    if (hasUpperCase) score++;
+    if (hasLowerCase) score++;
+    if (hasNumber) score++;
+    if (hasSpecialChar) score++;
+    
+    setPasswordStrength({
+      score,
+      hasMinLength,
+      hasUpperCase,
+      hasLowerCase,
+      hasNumber,
+      hasSpecialChar
+    });
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -23,6 +60,23 @@ export default function ChangePasswordPage() {
       ...prev,
       [name]: value
     }));
+
+    // Check strength when new password changes
+    if (name === 'newPassword') {
+      checkPasswordStrength(value);
+    }
+  };
+
+  const toggleCurrentPasswordVisibility = () => {
+    setShowCurrentPassword(!showCurrentPassword);
+  };
+
+  const toggleNewPasswordVisibility = () => {
+    setShowNewPassword(!showNewPassword);
+  };
+
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
   };
 
   const validateForm = () => {
@@ -35,9 +89,15 @@ export default function ChangePasswordPage() {
       return false;
     }
     
-    // Check if new password is at least 6 characters
-    if (formData.newPassword.length < 6) {
-      setErrorMessage('New password must be at least 6 characters');
+    // Check if new password has at least 8 characters
+    if (!passwordStrength.hasMinLength) {
+      setErrorMessage('New password must be at least 8 characters');
+      return false;
+    }
+    
+    // Check if password is strong enough
+    if (passwordStrength.score < 3) {
+      setErrorMessage('Password strength is insufficient. Please ensure it includes uppercase letters, lowercase letters, numbers, and special characters');
       return false;
     }
     
@@ -149,6 +209,13 @@ export default function ChangePasswordPage() {
     );
   }
 
+  // Get password strength color
+  const getPasswordStrengthColor = () => {
+    if (passwordStrength.score < 2) return 'bg-red-500';
+    if (passwordStrength.score < 4) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+
   return (
     <div className="max-w-2xl mx-auto p-4 sm:p-6 lg:p-8">
       <div className="bg-white shadow-md rounded-lg">
@@ -188,49 +255,116 @@ export default function ChangePasswordPage() {
               <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-1">
                 Current Password
               </label>
-              <input
-                type="password"
-                id="currentPassword"
-                name="currentPassword"
-                value={formData.currentPassword}
-                onChange={handleChange}
-                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showCurrentPassword ? "text" : "password"}
+                  id="currentPassword"
+                  name="currentPassword"
+                  value={formData.currentPassword}
+                  onChange={handleChange}
+                  className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary pr-10"
+                  required
+                />
+                <button 
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={toggleCurrentPasswordVisibility}
+                >
+                  {showCurrentPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+              </div>
             </div>
             
             <div>
               <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
                 New Password
               </label>
-              <input
-                type="password"
-                id="newPassword"
-                name="newPassword"
-                value={formData.newPassword}
-                onChange={handleChange}
-                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
-                required
-                minLength={6}
-              />
-              <p className="mt-1 text-sm text-gray-500">
-                Must be at least 6 characters long.
-              </p>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  id="newPassword"
+                  name="newPassword"
+                  value={formData.newPassword}
+                  onChange={handleChange}
+                  className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary pr-10"
+                  required
+                />
+                <button 
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={toggleNewPasswordVisibility}
+                >
+                  {showNewPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+              </div>
+              
+              {/* Password strength indicator */}
+              {formData.newPassword && (
+                <div className="mt-2">
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full ${getPasswordStrengthColor()}`} 
+                      style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
+                    ></div>
+                  </div>
+                  <ul className="mt-2 text-xs space-y-1">
+                    <li className={passwordStrength.hasMinLength ? "text-green-600" : "text-gray-500"}>
+                      ✓ At least 8 characters
+                    </li>
+                    <li className={passwordStrength.hasUpperCase ? "text-green-600" : "text-gray-500"}>
+                      ✓ At least one uppercase letter
+                    </li>
+                    <li className={passwordStrength.hasLowerCase ? "text-green-600" : "text-gray-500"}>
+                      ✓ At least one lowercase letter
+                    </li>
+                    <li className={passwordStrength.hasNumber ? "text-green-600" : "text-gray-500"}>
+                      ✓ At least one number
+                    </li>
+                    <li className={passwordStrength.hasSpecialChar ? "text-green-600" : "text-gray-500"}>
+                      ✓ At least one special character
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
             
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
                 Confirm New Password
               </label>
-              <input
-                type="password"
-                id="confirmPassword"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className="w-full border-gray-300 rounded-md shadow-sm focus:ring-primary focus:border-primary pr-10"
+                  required
+                />
+                <button 
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={toggleConfirmPasswordVisibility}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+              </div>
+              {formData.newPassword && formData.confirmPassword && formData.newPassword !== formData.confirmPassword && (
+                <p className="mt-1 text-sm text-red-600">Passwords do not match</p>
+              )}
             </div>
             
             <div className="flex justify-end">
@@ -263,11 +397,10 @@ export default function ChangePasswordPage() {
         isOpen={showConfirmDialog}
         title="Confirm Password Change"
         message="Are you sure you want to change your password? You will need to use the new password for your next login."
-        confirmText="Change Password"
-        cancelText="Cancel"
+        confirmLabel="Yes, Change Password"
+        cancelLabel="Cancel"
         onConfirm={handleSubmit}
         onCancel={cancelPasswordChange}
-        type="warning"
       />
     </div>
   );

@@ -4,68 +4,31 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
+import DemoDataBadge from '@/components/ui/DemoDataBadge';
 
-// Sample data for development
-const SAMPLE_REPORTS = [
-  {
-    id: 'REP-001',
-    title: 'Pothole on Orchard Road',
-    category: 'roads',
-    subcategory: 'potholes',
-    status: 'under_review',
-    location: 'Orchard Road, near ION Orchard',
-    submitted: '2023-12-15T08:30:00Z',
-    lastUpdated: '2023-12-15T10:15:00Z',
-    images: ['https://singareport-media.obs.ap-southeast-3.myhuaweicloud.com/sample/pothole1.jpg'],
-    description: 'Large pothole approximately 30cm in diameter causing traffic to swerve dangerously.',
-    upvotes: 12,
-    comments: 3
-  },
-  {
-    id: 'REP-002',
-    title: 'Fallen Tree Branch',
-    category: 'environment',
-    subcategory: 'fallen_trees',
-    status: 'in_progress',
-    location: 'East Coast Park, Area C',
-    submitted: '2023-12-10T14:22:00Z',
-    lastUpdated: '2023-12-14T09:40:00Z',
-    images: ['https://singareport-media.obs.ap-southeast-3.myhuaweicloud.com/sample/tree1.jpg'],
-    description: 'Large tree branch has fallen and is blocking the bicycle path. Cyclists have to dismount and walk around it.',
-    upvotes: 8,
-    comments: 5
-  },
-  {
-    id: 'REP-003',
-    title: 'Faulty Traffic Light',
-    category: 'roads',
-    subcategory: 'traffic_lights',
-    status: 'resolved',
-    location: 'Junction of Bukit Timah Road and Dunearn Road',
-    submitted: '2023-12-05T11:15:00Z',
-    lastUpdated: '2023-12-08T16:20:00Z',
-    images: ['https://singareport-media.obs.ap-southeast-3.myhuaweicloud.com/sample/traffic1.jpg'],
-    description: 'Traffic light stuck on red in all directions causing traffic congestion.',
-    upvotes: 32,
-    comments: 7
-  },
-  {
-    id: 'REP-004',
-    title: 'Illegal Dumping',
-    category: 'cleanliness',
-    subcategory: 'illegal_dumping',
-    status: 'pending',
-    location: 'Behind Block 123, Clementi Ave 6',
-    submitted: '2023-12-13T17:05:00Z',
-    lastUpdated: '2023-12-13T17:05:00Z',
-    images: ['https://singareport-media.obs.ap-southeast-3.myhuaweicloud.com/sample/dumping1.jpg'],
-    description: 'Someone has dumped construction materials including broken tiles and cement behind the housing block.',
-    upvotes: 3,
-    comments: 1
-  },
-];
+// 定义报告接口
+interface Report {
+  id: string;
+  title: string;
+  category: string;
+  subcategory?: string;
+  status: string;
+  location?: string;
+  createdAt: string; // API返回的是ISO格式的日期
+  updatedAt: string;
+  images?: string[];
+  description: string;
+  upvotes?: number;
+  comments?: number;
+  isDemo?: boolean; // 是否为示例数据
+  media?: {
+    id: string;
+    type: string;
+    url: string;
+  }[];
+}
 
-// Status badge component
+// 状态徽章组件
 function StatusBadge({ status }: { status: string }) {
   const statusConfig = {
     pending: { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
@@ -89,20 +52,72 @@ export default function DashboardPage() {
   const { user, isLoading, isAuthenticated, checkAuth } = useAuth();
   const [activeTab, setActiveTab] = useState('all');
   const [activeSorting, setActiveSorting] = useState('newest');
+  const [reports, setReports] = useState<Report[]>([]);
+  const [isLoadingReports, setIsLoadingReports] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Ensure user is authenticated
+  // 确保用户已认证
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
   
-  // If user is not authenticated and loading is complete, redirect to login page
+  // 如果用户未认证且加载完成，重定向到登录页面
   if (!isAuthenticated && !isLoading) {
     router.replace('/login');
     return null;
   }
 
-  // Filter reports based on active tab
-  const filteredReports = SAMPLE_REPORTS.filter(report => {
+  // 从API获取报告数据
+  useEffect(() => {
+    async function fetchReports() {
+      setIsLoadingReports(true);
+      setError(null);
+      
+      try {
+        const response = await fetch('/api/reports');
+        if (!response.ok) {
+          throw new Error('Failed to fetch reports');
+        }
+        
+        const data = await response.json();
+        if (data.success && data.data?.reports) {
+          // 将API数据转换为组件需要的格式
+          const formattedReports = data.data.reports.map((report: any) => ({
+            id: report.id,
+            title: report.title,
+            category: report.category,
+            status: report.status,
+            location: report.location,
+            createdAt: report.createdAt,
+            updatedAt: report.updatedAt,
+            description: report.description,
+            isDemo: report.isDemo || false,
+            media: report.media || [],
+            // 如果API不返回以下字段，使用默认值
+            upvotes: report.upvotes || 0,
+            comments: report.comments || 0
+          }));
+          
+          setReports(formattedReports);
+        } else {
+          setReports([]);
+        }
+      } catch (err) {
+        console.error('Error fetching reports:', err);
+        setError('Failed to load reports. Please try again later.');
+        setReports([]);
+      } finally {
+        setIsLoadingReports(false);
+      }
+    }
+    
+    if (isAuthenticated) {
+      fetchReports();
+    }
+  }, [isAuthenticated]);
+
+  // 基于活动标签筛选报告
+  const filteredReports = reports.filter(report => {
     if (activeTab === 'all') return true;
     if (activeTab === 'pending' && report.status === 'pending') return true;
     if (activeTab === 'in_progress' && 
@@ -111,24 +126,24 @@ export default function DashboardPage() {
     return false;
   });
 
-  // Sort reports based on active sorting
+  // 基于活动排序对报告进行排序
   const sortedReports = [...filteredReports].sort((a, b) => {
     if (activeSorting === 'newest') {
-      return new Date(b.submitted).getTime() - new Date(a.submitted).getTime();
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     }
     if (activeSorting === 'oldest') {
-      return new Date(a.submitted).getTime() - new Date(b.submitted).getTime();
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
     }
     if (activeSorting === 'most_upvotes') {
-      return b.upvotes - a.upvotes;
+      return (b.upvotes || 0) - (a.upvotes || 0);
     }
     if (activeSorting === 'recently_updated') {
-      return new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime();
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     }
     return 0;
   });
 
-  // Format date for display
+  // 格式化日期显示
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-SG', { 
@@ -140,7 +155,7 @@ export default function DashboardPage() {
     });
   };
 
-  // Get category/subcategory name
+  // 获取分类/子分类名称
   const getCategoryName = (categoryId: string) => {
     const categories = {
       'roads': 'Road Issues',
@@ -169,12 +184,12 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white rounded-xl shadow-sm p-4">
               <div className="text-sm text-gray-500 mb-1">Total Reports</div>
-              <div className="text-2xl font-bold">{SAMPLE_REPORTS.length}</div>
+              <div className="text-2xl font-bold">{reports.length}</div>
             </div>
             <div className="bg-white rounded-xl shadow-sm p-4">
               <div className="text-sm text-gray-500 mb-1">In Progress</div>
               <div className="text-2xl font-bold text-purple-600">
-                {SAMPLE_REPORTS.filter(r => 
+                {reports.filter(r => 
                   r.status === 'under_review' || r.status === 'in_progress'
                 ).length}
               </div>
@@ -182,13 +197,13 @@ export default function DashboardPage() {
             <div className="bg-white rounded-xl shadow-sm p-4">
               <div className="text-sm text-gray-500 mb-1">Resolved</div>
               <div className="text-2xl font-bold text-green-600">
-                {SAMPLE_REPORTS.filter(r => r.status === 'resolved').length}
+                {reports.filter(r => r.status === 'resolved').length}
               </div>
             </div>
             <div className="bg-white rounded-xl shadow-sm p-4">
               <div className="text-sm text-gray-500 mb-1">Pending</div>
               <div className="text-2xl font-bold text-yellow-600">
-                {SAMPLE_REPORTS.filter(r => r.status === 'pending').length}
+                {reports.filter(r => r.status === 'pending').length}
               </div>
             </div>
           </div>
@@ -266,46 +281,72 @@ export default function DashboardPage() {
             </nav>
           </div>
 
+          {/* Loading State */}
+          {isLoadingReports && (
+            <div className="bg-white rounded-xl shadow-sm p-10 text-center">
+              <div className="flex justify-center mb-4">
+                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
+              </div>
+              <p className="text-gray-500">Loading reports...</p>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="bg-white rounded-xl shadow-sm p-10 text-center border border-red-200">
+              <div className="text-4xl mb-4">⚠️</div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Error</h3>
+              <p className="text-gray-500 mb-6">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary/90"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {/* Reports List */}
-          {sortedReports.length > 0 ? (
+          {!isLoadingReports && !error && sortedReports.length > 0 ? (
             <div className="space-y-4">
               {sortedReports.map((report) => (
                 <div key={report.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
                   <div className="p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                      <div>
+                      <div className="flex items-center gap-2">
                         <h3 className="text-lg font-semibold text-gray-900 mb-1">
                           <Link href={`/report/${report.id}`} className="hover:text-primary">
                             {report.title}
                           </Link>
                         </h3>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm text-gray-500">{report.id}</span>
-                          <span className="text-gray-300">•</span>
-                          <span className="text-sm text-gray-500">{getCategoryName(report.category)}</span>
-                          <span className="text-gray-300">•</span>
-                          <span className="text-sm text-gray-500">{formatDate(report.submitted)}</span>
-                        </div>
+                        {report.isDemo && <DemoDataBadge isDemo={true} size="sm" />}
                       </div>
                       <StatusBadge status={report.status} />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className="text-sm text-gray-500">{report.id}</span>
+                      <span className="text-gray-300">•</span>
+                      <span className="text-sm text-gray-500">{getCategoryName(report.category)}</span>
+                      <span className="text-gray-300">•</span>
+                      <span className="text-sm text-gray-500">{formatDate(report.createdAt)}</span>
                     </div>
                     <p className="text-gray-600 mb-4 line-clamp-2">{report.description}</p>
                     <div className="flex flex-col sm:flex-row gap-4 sm:items-center justify-between">
                       <div className="text-sm text-gray-500">
-                        <span className="font-medium">Location:</span> {report.location}
+                        <span className="font-medium">Location:</span> {report.location || 'Not specified'}
                       </div>
                       <div className="flex items-center space-x-4">
                         <div className="flex items-center space-x-1">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                             <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
                           </svg>
-                          <span className="text-sm text-gray-500">{report.upvotes}</span>
+                          <span className="text-sm text-gray-500">{report.upvotes || 0}</span>
                         </div>
                         <div className="flex items-center space-x-1">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                           </svg>
-                          <span className="text-sm text-gray-500">{report.comments}</span>
+                          <span className="text-sm text-gray-500">{report.comments || 0}</span>
                         </div>
                         <Link
                           href={`/report/${report.id}`}
@@ -319,7 +360,7 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
-          ) : (
+          ) : !isLoadingReports && !error ? (
             <div className="bg-white rounded-xl shadow-sm p-10 text-center">
               <div className="text-4xl mb-4">📋</div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No reports found</h3>
@@ -335,7 +376,7 @@ export default function DashboardPage() {
                 Submit a New Report
               </Link>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

@@ -2,7 +2,16 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['localhost', 'singareport-media.obs.ap-southeast-3.myhuaweicloud.com'],
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+      {
+        protocol: 'https',
+        hostname: 'singareport-media.obs.ap-southeast-3.myhuaweicloud.com',
+      },
+    ],
   }
 }
 

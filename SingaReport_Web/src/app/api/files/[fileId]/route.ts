@@ -65,40 +65,72 @@ export async function GET(
   { params }: { params: { fileId: string } }
 ) {
   try {
-    // 1. 获取文件ID
-    const { fileId } = params;
+    // Get the file ID from params
+    const fileId = params.fileId;
+    if (!fileId) {
+      return NextResponse.json({ error: 'File ID is required' }, { status: 400 });
+    }
+
+    // Extract user information from token
+    const token = request.cookies.get('auth_token')?.value 
+                || extractTokenFromHeader(request.headers.get('Authorization'));
     
-    // 2. 身份验证
-    const token = request.cookies.get('auth_token')?.value;
     if (!token) {
-      return NextResponse.json(
-        { error: 'Authentication required to access files.' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized access' }, { status: 401 });
     }
 
     const user = await verifyToken(token);
     if (!user) {
-      return NextResponse.json(
-        { error: 'Your session has expired. Please log in again.' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
     
-    // 3. 检查文件是否存在
+    // Get client IP and user agent
+    const ipAddress = getClientIp(request);
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    
+    // Find the file
     const file = await prisma.file.findUnique({
       where: { id: fileId },
-      include: {
-        scanResult: true,
+      select: {
+        id: true,
+        fileName: true,
+        fileSize: true,
+        fileType: true,
+        contentType: true,
+        createdAt: true,
+        updatedAt: true,
+        scanStatus: true,
+        downloadCount: true,
+        status: true,
+        tags: true,
+        reportId: true,
+        lastDownloadedAt: true,
+        metadata: true,
+        userId: true,
         user: {
           select: {
             id: true,
             username: true,
+            name: true,
+            role: true
+          }
+        },
+        report: {
+          select: {
+            id: true,
+            title: true,
+            category: true
           }
         }
       }
     });
     
+    // 单独查询isDemo字段
+    const isDemoResult = await prisma.file.findUnique({
+      where: { id: fileId },
+      select: { isDemo: true }
+    });
+
     if (!file) {
       // 记录访问失败日志
       await logFileAccess({
@@ -174,8 +206,8 @@ export async function GET(
       accessType: 'METADATA', // 仅获取元数据
     });
     
-    // 7. 返回文件元数据
-    const fileMetadata = {
+    // Prepare file details for return
+    const fileDetails = {
       id: file.id,
       fileName: file.fileName,
       fileSize: file.fileSize,
@@ -184,17 +216,24 @@ export async function GET(
       createdAt: file.createdAt,
       updatedAt: file.updatedAt,
       scanStatus: file.scanStatus,
-      owner: {
+      downloadCount: file.downloadCount,
+      status: file.status,
+      downloadUrl: `/api/files/${file.id}/download`,
+      viewUrl: `/api/files/${file.id}/view`,
+      lastDownloadedAt: file.lastDownloadedAt,
+      reportId: file.reportId,
+      canDelete: userCanDelete,
+      canEdit: userCanEdit,
+      tags: file.tags,
+      metadata: file.metadata,
+      isDemo: isDemoResult?.isDemo || false,
+      user: {
         id: file.user.id,
         username: file.user.username,
-      },
-      reportId: file.reportId,
-      downloadUrl: `/api/files/${fileId}/download`, // 下载URL
-      metadata: file.metadata,
-      tags: file.tags,
+      }
     };
     
-    return NextResponse.json(fileMetadata);
+    return NextResponse.json(fileDetails);
     
   } catch (error) {
     console.error('File access error:', error);

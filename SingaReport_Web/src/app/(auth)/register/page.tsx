@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, register } = useAuth();
+  const { user, isLoading: authLoading, register, authError } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     name: '',
@@ -17,6 +18,16 @@ export default function RegisterPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [passwordStrength, setPasswordStrength] = useState({
+    score: 0,
+    hasMinLength: false,
+    hasUpperCase: false,
+    hasLowerCase: false, 
+    hasNumber: false,
+    hasSpecialChar: false
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Check if user is already logged in, redirect to dashboard if true
   useEffect(() => {
@@ -25,12 +36,57 @@ export default function RegisterPage() {
     }
   }, [user, authLoading, router]);
 
+  // Listen for auth errors from context
+  useEffect(() => {
+    if (authError) {
+      setError(authError);
+    }
+  }, [authError]);
+
+  // Check password strength
+  const checkPasswordStrength = (password: string) => {
+    const hasMinLength = password.length >= 8;
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecialChar = /[^A-Za-z0-9]/.test(password);
+    
+    let score = 0;
+    if (hasMinLength) score++;
+    if (hasUpperCase) score++;
+    if (hasLowerCase) score++;
+    if (hasNumber) score++;
+    if (hasSpecialChar) score++;
+    
+    setPasswordStrength({
+      score,
+      hasMinLength,
+      hasUpperCase,
+      hasLowerCase,
+      hasNumber,
+      hasSpecialChar
+    });
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
+    
+    // When password changes, check its strength
+    if (name === 'password') {
+      checkPasswordStrength(value);
+    }
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword(!showConfirmPassword);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,6 +97,19 @@ export default function RegisterPage() {
     // Basic form validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
+      setIsLoading(false);
+      return;
+    }
+
+    // Password strength validation
+    if (!passwordStrength.hasMinLength) {
+      setError('Password must be at least 8 characters long');
+      setIsLoading(false);
+      return;
+    }
+
+    if (passwordStrength.score < 3) {
+      setError('Password strength is insufficient. Please ensure it includes uppercase letters, lowercase letters, numbers, and special characters');
       setIsLoading(false);
       return;
     }
@@ -66,7 +135,8 @@ export default function RegisterPage() {
         // Registration successful, will auto-login and redirect to dashboard
         console.log('Registration successful, redirecting...');
         router.push('/dashboard');
-      } else {
+      } else if (!error) {
+        // Only set generic error if no specific error was set
         setError('Registration failed, please try again');
       }
     } catch (err: any) {
@@ -90,6 +160,13 @@ export default function RegisterPage() {
   if (user) {
     return null;
   }
+
+  // Get password strength color
+  const getPasswordStrengthColor = () => {
+    if (passwordStrength.score < 2) return 'bg-red-500';
+    if (passwordStrength.score < 4) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
@@ -171,36 +248,90 @@ export default function RegisterPage() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
-              <div className="mt-1">
+              <div className="mt-1 relative">
                 <input
                   id="password"
                   name="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   autoComplete="new-password"
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary pr-10"
                 />
+                <button 
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={togglePasswordVisibility}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
               </div>
+              
+              {/* Password strength indicator */}
+              {formData.password && (
+                <div className="mt-2">
+                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full ${getPasswordStrengthColor()}`} 
+                      style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
+                    ></div>
+                  </div>
+                  <ul className="mt-2 text-xs space-y-1">
+                    <li className={passwordStrength.hasMinLength ? "text-green-600" : "text-gray-500"}>
+                      ✓ At least 8 characters
+                    </li>
+                    <li className={passwordStrength.hasUpperCase ? "text-green-600" : "text-gray-500"}>
+                      ✓ At least one uppercase letter
+                    </li>
+                    <li className={passwordStrength.hasLowerCase ? "text-green-600" : "text-gray-500"}>
+                      ✓ At least one lowercase letter
+                    </li>
+                    <li className={passwordStrength.hasNumber ? "text-green-600" : "text-gray-500"}>
+                      ✓ At least one number
+                    </li>
+                    <li className={passwordStrength.hasSpecialChar ? "text-green-600" : "text-gray-500"}>
+                      ✓ At least one special character
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
                 Confirm Password
               </label>
-              <div className="mt-1">
+              <div className="mt-1 relative">
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   autoComplete="new-password"
                   required
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-primary focus:border-primary pr-10"
                 />
+                <button 
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={toggleConfirmPasswordVisibility}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
               </div>
+              {formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                <p className="mt-1 text-sm text-red-600">Passwords do not match</p>
+              )}
             </div>
 
             <div>

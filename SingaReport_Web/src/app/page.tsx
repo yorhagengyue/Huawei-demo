@@ -6,6 +6,7 @@ import Image from 'next/image';
 import WelcomePrompt from '@/components/welcome/WelcomePrompt';
 import { useAuth } from '@/contexts/AuthContext';
 import { FiMapPin, FiCheckCircle, FiAlertTriangle, FiInfo, FiArrowRight } from 'react-icons/fi';
+import { Info } from 'lucide-react';
 
 export default function Home() {
   const { user, isLoading } = useAuth();
@@ -120,12 +121,10 @@ export default function Home() {
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
                 </div>
               ) : (
-                <Image
-                  src="/images/map-preview.jpg"
-                  alt="Singapore issue map preview"
-                  fill
-                  className="object-cover"
-                />
+                <div className="flex items-center justify-center bg-gray-100 rounded-md h-80 w-full">
+                  <Info className="h-12 w-12 text-gray-400" />
+                  <p className="text-gray-500 ml-2">地图预览暂不可用</p>
+                </div>
               )}
               <div className="absolute bottom-4 right-4">
                 <Link

@@ -10,174 +10,184 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 用户模型
+// User model
 model User {
-  id             String    @id @default(uuid())
-  username       String    @unique
-  email          String    @unique
-  password       String    // 实际应用中应存储哈希值
-  name           String?
-  phone          String?
-  avatar         String?   // 用户头像URL
-  bio            String?   // 个人简介
-  address        String?   // 地址
-  postalCode     String?   // 邮政编码
+  id         String  @id @default(uuid())
+  username   String  @unique
+  email      String  @unique
+  password   String // In actual application, should store hash values
+  name       String?
+  role       String  @default("USER") // User roles: USER, ADMIN, MODERATOR
+  phone      String?
+  avatar     String? // User avatar URL
+  bio        String? // Personal bio
+  address    String? // Address
+  postalCode String? // Postal code
 
-  // 新加坡特定字段
-  preferredLanguage String? @default("english") // 首选语言: english, chinese, malay, tamil
-  residentialStatus String? // 居住状态: citizen, pr, work_pass, dependent_pass 等
-  singaporePostalCode String? // 新加坡邮编(6位数字)
-  
-  // 账户设置
-  notificationsEnabled Boolean @default(true)  // 是否启用通知
-  emailNotifications   Boolean @default(true)  // 电子邮件通知
-  pushNotifications    Boolean @default(false) // 推送通知
-  smsNotifications     Boolean @default(false) // 短信通知
-  twoFactorEnabled     Boolean @default(false) // 两因素认证
-  
-  // 用户状态
-  isActive        Boolean   @default(true)
-  emailVerified   Boolean   @default(false)
-  lastLogin       DateTime?
-  
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  reports        Report[]  // 用户创建的报告
-  uploadLogs     UploadLog[] // 用户的上传日志
-  files          File[]    // 用户上传的文件
+  // Singapore specific fields
+  preferredLanguage   String? @default("english") // Preferred language: english, chinese, malay, tamil
+  residentialStatus   String? // Residential status: citizen, pr, work_pass, dependent_pass etc.
+  singaporePostalCode String? // Singapore postal code (6 digits)
+
+  // Account settings
+  notificationsEnabled Boolean @default(true) // Whether notifications are enabled
+  emailNotifications   Boolean @default(true) // Email notifications
+  pushNotifications    Boolean @default(false) // Push notifications
+  smsNotifications     Boolean @default(false) // SMS notifications
+  twoFactorEnabled     Boolean @default(false) // Two-factor authentication
+
+  // User status
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  lastLogin     DateTime?
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  reports    Report[] // Reports created by user
+  uploadLogs UploadLog[] // User's upload logs
+  files      File[] // Files uploaded by user
 }
 
-// 报告模型
+// Report model
 model Report {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   title       String
   description String
   category    String
-  status      String    @default("pending") // pending, in_progress, resolved, rejected
+  status      String   @default("pending") // pending, in_progress, resolved, rejected
   location    String?
   latitude    Float?
   longitude   Float?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  // 关联到创建此报告的用户
-  userId      String
-  user        User      @relation(fields: [userId], references: [id])
-  
-  // 报告的媒体文件
-  media       Media[]
-  files       File[]    // 报告关联的文件
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Associated with the user who created this report
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Media files for the report
+  media Media[]
+  files File[] // Files associated with the report
+
+  // Demo data flag
+  isDemo Boolean @default(false) // Whether it is demo data
 }
 
-// 媒体文件模型
+// Media file model
 model Media {
   id        String   @id @default(uuid())
-  type      String   // image, video
+  type      String // image, video
   url       String
   createdAt DateTime @default(now())
-  
-  // 关联到报告
-  reportId  String
-  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  // Associated with report
+  reportId String
+  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  // Demo data flag
+  isDemo Boolean @default(false) // Whether it is demo data
 }
 
-// 文件模型(新增)
+// File model (new)
 model File {
-  id            String   @id @default(uuid())
-  fileName      String
-  fileSize      Int
-  fileType      String
-  contentType   String
-  storageType   String   @default("local") // local, huawei_obs, etc.
-  storagePath   String   // 存储路径
-  publicUrl     String?  // 公共访问URL
-  checksum      String?  // 文件校验和
-  status        String   @default("active") // active, deleted, quarantined
-  
-  // 内容安全
-  scanStatus    String?  // clean, infected, pending
-  scanResult    String?  // 扫描结果详情
-  
-  // 关联
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  reportId      String?
-  report        Report?  @relation(fields: [reportId], references: [id])
-  
-  // 审计和元数据
-  metadata      Json?    // 额外元数据
-  tags          String[] 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  deletedAt     DateTime?
-  
-  // 关联上传日志
-  uploadLog     UploadLog?
+  id               String    @id @default(uuid())
+  fileName         String
+  fileSize         Int
+  fileType         String
+  contentType      String
+  storageType      String    @default("local") // local, huawei_obs, etc.
+  storagePath      String // Storage path
+  publicUrl        String? // Public access URL
+  checksum         String? // File checksum
+  status           String    @default("active") // active, deleted, quarantined
+  downloadCount    Int       @default(0) // Download count
+  lastDownloadedAt DateTime? // Last downloaded time
+
+  // Content security
+  scanStatus String? // clean, infected, pending
+  scanResult String? // Scan result details
+
+  // Associations
+  userId   String
+  user     User    @relation(fields: [userId], references: [id])
+  reportId String?
+  report   Report? @relation(fields: [reportId], references: [id])
+
+  // Audit and metadata
+  metadata  Json? // Additional metadata
+  tags      String[]
+  isDemo    Boolean   @default(false) // 标记是否为演示数据
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  // Associated upload log
+  uploadLog UploadLog?
 }
 
-// 上传日志模型(新增 - 符合新加坡审计要求)
+// Upload log model (new - complies with Singapore audit requirements)
 model UploadLog {
-  id            String   @id @default(uuid())
-  
-  // 上传文件信息
-  fileId        String?  @unique // 可能为null表示上传失败
-  file          File?    @relation(fields: [fileId], references: [id])
-  originalName  String   // 原始文件名
-  fileSize      Int
-  fileType      String
-  
-  // 操作者信息
-  userId        String
-  user          User     @relation(fields: [userId], references: [id])
-  ipAddress     String
-  userAgent     String
-  
-  // 上传状态
-  status        String   // SUCCESS, FAILED, REJECTED_SIZE, REJECTED_TYPE, etc.
-  errorMessage  String?  // 如果失败，错误消息
-  
-  // PDPA合规信息
-  containsPII   Boolean  @default(false) // 是否包含个人身份信息
-  dataConsent   Boolean  @default(false) // 用户是否同意数据处理
-  
-  // 新加坡特定审计信息
-  requestId     String?  // 关联的请求ID
-  processingTime Int?     // 处理时间(毫秒)
-  sourceSystem  String?  // 来源系统
-  destinationSystem String? // 目标系统
-  
-  // 时间戳
-  createdAt     DateTime @default(now())
-  
-  // 元数据
-  metadata      Json?
+  id String @id @default(uuid())
+
+  // Upload file information
+  fileId       String? @unique // May be null indicating upload failure
+  file         File?   @relation(fields: [fileId], references: [id])
+  originalName String // Original file name
+  fileSize     Int
+  fileType     String
+
+  // Operator information
+  userId    String
+  user      User   @relation(fields: [userId], references: [id])
+  ipAddress String
+  userAgent String
+
+  // Upload status
+  status       String // SUCCESS, FAILED, REJECTED_SIZE, REJECTED_TYPE, etc.
+  errorMessage String? // Error message if failed
+
+  // PDPA compliance information
+  containsPII Boolean @default(false) // Whether it contains personally identifiable information
+  dataConsent Boolean @default(false) // Whether user consents to data processing
+
+  // Singapore specific audit information
+  requestId         String? // Associated request ID
+  processingTime    Int? // Processing time (milliseconds)
+  sourceSystem      String? // Source system
+  destinationSystem String? // Destination system
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Metadata
+  metadata Json?
 }
 
-// 文件扫描结果(新增 - 安全检查)
+// File scan results (new - security checks)
 model FileScanResult {
   id            String   @id @default(uuid())
   fileId        String   @unique
-  scanProvider  String   // 扫描提供商(例如:IMDA认证的扫描服务)
+  scanProvider  String // Scan provider (e.g.: IMDA certified scanning service)
   scanDate      DateTime
-  status        String   // clean, infected, suspicious
+  status        String // clean, infected, suspicious
   threatDetails Json?
   quarantined   Boolean  @default(false)
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// 文件访问日志(新增 - 访问审计)
+// File access log (new - access audit)
 model FileAccessLog {
-  id            String   @id @default(uuid())
-  fileId        String
-  userId        String?  // 可能为匿名访问
-  ipAddress     String
-  userAgent     String
-  accessType    String   // view, download, share
-  accessTime    DateTime @default(now())
-  
-  // 新加坡特定字段
-  geoLocation   String?  // 地理位置
-  isSuspicious  Boolean  @default(false) // 是否可疑访问
-} 
+  id         String   @id @default(uuid())
+  fileId     String
+  userId     String? // May be anonymous access
+  ipAddress  String
+  userAgent  String
+  accessType String // view, download, share
+  accessTime DateTime @default(now())
+
+  // Singapore specific fields
+  geoLocation  String? // Geographic location
+  isSuspicious Boolean @default(false) // Whether it's suspicious access
+}

@@ -1,6 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createUser } from '@/lib/auth/auth-utils';
-import { createToken } from '@/lib/auth/jwt-utils';
+import { generateToken } from '@/lib/auth/jwt-utils';
+
+// 验证密码强度的函数
+function validatePasswordStrength(password: string): { valid: boolean; message?: string } {
+  // 检查密码长度
+  if (password.length < 8) {
+    return { 
+      valid: false, 
+      message: '密码必须至少包含8个字符' 
+    };
+  }
+
+  // 检查密码是否包含大写字母
+  if (!/[A-Z]/.test(password)) {
+    return { 
+      valid: false, 
+      message: '密码必须包含至少一个大写字母' 
+    };
+  }
+
+  // 检查密码是否包含小写字母
+  if (!/[a-z]/.test(password)) {
+    return { 
+      valid: false, 
+      message: '密码必须包含至少一个小写字母' 
+    };
+  }
+
+  // 检查密码是否包含数字
+  if (!/[0-9]/.test(password)) {
+    return { 
+      valid: false, 
+      message: '密码必须包含至少一个数字' 
+    };
+  }
+
+  // 检查密码是否包含特殊字符
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return { 
+      valid: false, 
+      message: '密码必须包含至少一个特殊字符' 
+    };
+  }
+
+  return { valid: true };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,6 +72,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Password strength validation
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.valid) {
+      return NextResponse.json(
+        { error: passwordValidation.message },
+        { status: 400 }
+      );
+    }
+
     try {
       // Register the user
       const newUser = await createUser({
@@ -36,8 +90,8 @@ export async function POST(request: NextRequest) {
         name
       });
 
-      // 使用新的异步createToken方法创建JWT令牌
-      const token = await createToken({
+      // Use generateToken method to create JWT token
+      const token = await generateToken({
         id: newUser.id,
         email: newUser.email,
         username: newUser.username

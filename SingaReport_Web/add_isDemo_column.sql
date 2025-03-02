@@ -1,0 +1,2 @@
+-- 添加isDemo列到File表
+ALTER TABLE "File" ADD COLUMN IF NOT EXISTS "isDemo" BOOLEAN DEFAULT false; 
