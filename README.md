@@ -1,146 +1,431 @@
-# Huawei-Demo: SingaReport 智慧城市解决方案
+# Huawei-Demo: SingaReport Smart City Solution
 
-## 项目概述
+![SingaReport Logo](SingaReport_Web/public/logo.png)
 
-本仓库包含三个主要组件：
+## Project Overview
 
-1. **Janus AI 图像生成与分析**：基于Janus-Pro-7B模型的图像生成和分析系统，针对NVIDIA GPU优化。
-2. **SingaReport 智慧城市解决方案**：一个完整的智慧城市解决方案提案，专为新加坡打造的基于华为云技术的市民参与平台。
-3. **SingaReport_Web 前端应用**：基于Next.js和Tailwind CSS开发的现代化Web应用，实现了市民参与平台的用户界面。
+SingaReport is a comprehensive smart city solution designed specifically for Singapore, leveraging Huawei Cloud infrastructure and advanced AI technology. This revolutionary mobile and web platform aims to enhance interaction between Singapore citizens and the government by enabling easy reporting of urban issues, tracking resolution progress, and receiving personalized municipal service recommendations.
 
-## 目录结构
+### Problem Statement
+
+Singapore, as a leading smart city globally, faces the following challenges:
+- Cumbersome and fragmented processes for citizens to report municipal issues
+- Lack of transparent issue resolution tracking systems
+- Need for more efficient identification and classification of urban infrastructure problems (especially road conditions)
+- Insufficient accessibility to municipal service information
+
+### Value Proposition
+
+SingaReport addresses these challenges through:
+- **One-stop problem reporting platform**: Integrating all municipal issue reporting channels
+- **AI-driven automatic classification**: Utilizing our vision AI model optimized for Singapore's road conditions
+- **Transparent tracking system**: Real-time updates on processing progress
+- **Intelligent conversational assistant**: Providing personalized guidance on municipal services
+
+## Core Components
+
+### 1. Janus AI Module
+
+The Janus AI module is an advanced multimodal AI system based on the Janus-Pro-7B model that offers:
+
+- **Image Generation**: Convert text descriptions into high-quality images
+- **Image Analysis & Understanding**: Extract information and insights from uploaded images
+- **Multimodal Dialogue**: Process and respond to queries containing both text and images
+
+The module has been specifically optimized for limited-memory GPUs (such as RTX 3070 Ti) through:
+- 8-bit quantization
+- Efficient device mapping
+- Balanced CPU-GPU memory utilization
+
+#### Singapore Road Condition Vision Recognition System
+
+The system features a fine-tuned Janus-Pro-7B multimodal large language model specialized in identifying Singapore's unique road issues:
+
+- **Training Data**: Dataset of road images from various regions of Singapore, under different weather conditions and times
+- **Recognition Capabilities**:
+  - Road damage (potholes, cracks, uneven surfaces)
+  - Traffic sign issues (damaged, obstructed)
+  - Drainage system blockages (particularly adapted to Singapore's rainy climate)
+  - Illegal parking and obstacles
+  - Construction site-related road issues
+
+- **Technical Implementation**:
+  - QLoRA (Quantized Low-Rank Adaptation) fine-tuning method for optimized model performance on edge devices
+  - Huawei Cloud ModelArts automated AI training platform for model fine-tuning and deployment
+  - Huawei Cloud Atlas training cluster to accelerate the training process and reduce fine-tuning time
+  - Huawei MindSpore framework's mixed precision training to improve training efficiency and optimize model size
+
+### 2. SingaReport Smart City Solution
+
+SingaReport is an intelligent city feedback system proposal designed specifically for Singapore using Huawei Cloud as the core infrastructure:
+
+- **Purpose**: Enable citizens to easily report urban issues, track resolution progress, and receive municipal service recommendations
+- **Core Technology**: Fine-tuned Janus-Pro vision model specialized in identifying Singapore-specific urban issues
+- **Technical Stack**: Utilizing Huawei Cloud ModelArts, MindSpore framework, and Huawei Cloud Container Services
+- **Architecture**: Microservices architecture with dedicated user service, report service, notification service, and AI analysis service
+- **Implementation Plan**: Includes a detailed 12-month implementation roadmap with milestone deliverables
+
+#### Conversational AI Assistant
+
+An intelligent municipal service assistant developed based on the latest LLM technology:
+- Support for English, Chinese, Malay, and Tamil languages
+- Personalized recommendation engine
+- Context-aware conversational capabilities
+- Location-aware service suggestions
+
+### 3. SingaReport_Web Frontend Application
+
+SingaReport_Web is a modern web application developed with Next.js 14, providing the user interface for the SingaReport project:
+
+- **Technical Stack**: Next.js 14, React, TypeScript, Tailwind CSS, PostgreSQL, Prisma ORM
+- **Key Features**:
+  - User authentication system (registration, login, profile management)
+  - Multi-step issue reporting workflow with image upload
+  - Interactive map visualization of reported issues
+  - Real-time issue tracking and status updates
+  - Responsive design supporting mobile and desktop devices
+  - Administrative dashboard for issue management
+- **Development Status**: Authentication system, core UI components, and database integration implemented; map integration and notification system in progress
+
+#### Citizen Reporting Platform
+
+1. **Problem Reporting**:
+   - Photo/video upload (supporting AI automatic analysis)
+   - Location marking (GPS + manual adjustment)
+   - Problem classification and description
+   - Anonymous reporting option
+
+2. **Tracking System**:
+   - Real-time status updates
+   - Processing time estimates
+   - Transparent resolution process
+   - Notification push system
+
+3. **Community Engagement**:
+   - Problem verification mechanism
+   - Public dashboard showcasing hotspot problem areas
+   - Community voting system
+
+#### Intelligent Municipal Assistant
+
+1. **Service Navigation**:
+   - Personalized service recommendations
+   - Step-by-step guidance
+   - Document requirement checklist
+
+2. **Information Retrieval**:
+   - Location-related service inquiries
+   - Intelligent answers to frequently asked questions
+   - Regulation explanation and simplification
+
+3. **Personal Assistant Functions**:
+   - Service appointment management
+   - Document submission reminders
+   - Deadline reminders
+
+## System Architecture
+
+SingaReport employs a modern microservices architecture:
+
+```
+                  ┌───────────────┐
+                  │   User Device │
+                  │(Mobile/Web)   │
+                  └───────┬───────┘
+                          │
+                          ▼
+┌────────────────────────────────────────────────┐
+│         Huawei Cloud CDN/WAF Protection        │
+└────────────────────────┬───────────────────────┘
+                          │
+                          ▼
+┌────────────────────────────────────────────────┐
+│            API Gateway (APIG Service)          │
+└┬──────────┬──────────┬──────────┬──────────────┘
+ │          │          │          │
+ ▼          ▼          ▼          ▼
+┌──────┐ ┌──────┐ ┌──────┐ ┌──────────────┐
+│User  │ │Report│ │Notifi│ │AI Analysis   │
+│Svc   │ │Svc   │ │cation│ │Service       │
+└──┬───┘ └──┬───┘ └──┬───┘ └──────┬───────┘
+   │        │        │            │
+   └────────┼────────┼────────────┘
+            │        │
+            ▼        ▼
+┌───────────────┐ ┌───────────────┐
+│ Relational DB │ │ Message Queue │
+└───────────────┘ └───────────────┘
+        │                 │
+        │                 ▼
+        │         ┌───────────────┐
+        │         │ Object Storage│
+        │         └───────────────┘
+        ▼
+┌───────────────┐
+│ Geospatial DB │
+└───────────────┘
+```
+
+### Technical Implementation Details
+
+#### Frontend Technology Stack
+- **Mobile Application**: React Native + TypeScript
+- **Web Platform**: Next.js + Tailwind CSS
+- **State Management**: Redux Toolkit
+- **Map Integration**: Mapbox + Custom Layers
+
+#### Backend Technology Stack
+- **API Framework**: FastAPI + Python 3.11
+- **Microservice Orchestration**: Kubernetes + Docker
+- **Message Queue**: RabbitMQ
+- **Databases**: PostgreSQL + PostGIS + MongoDB
+- **Cache**: Redis
+
+#### AI Technology Stack
+- **Vision Model**:
+  - Fine-tuned Janus-Pro-7B multimodal model (using QLoRA technology)
+  - Huawei Cloud ModelArts platform for full-process AI development
+  - Huawei MindSpore framework for model quantization and inference optimization
+- **NLP Engine**:
+  - Custom LLM adapters based on Huawei Pangu model
+  - Named entity recognition optimized for Singapore's multilingual environment
+- **Machine Learning Framework**:
+  - Huawei MindSpore as the primary framework
+  - PyTorch and HuggingFace Transformers for auxiliary development
+- **MLOps**:
+  - Huawei Cloud ModelArts one-stop MLOps platform
+  - Huawei Cloud Data Governance Center (DGC) ensuring data quality
+  - Huawei Cloud AI lifecycle management and Model as a Service (MaaS)
+
+#### Cloud Services and Infrastructure
+- **Primary Cloud Platform**: HUAWEI CLOUD
+  - Singapore local data center, providing low-latency access
+  - Compliant with Singapore IMDA multi-tier cloud security standards
+  - Comprehensive government cloud solutions and compliance certifications
+- **AI Acceleration**:
+  - Huawei Cloud ModelArts providing full-process AI development platform
+  - Huawei Cloud Atlas training cluster (for model training)
+  - Huawei Cloud AI inference engine optimizing inference performance
+- **Data Management**:
+  - Huawei Cloud Object Storage Service (OBS) for large-scale image storage
+  - Huawei Cloud Data Lake Insight (DLI) for unstructured data analysis
+- **Container Orchestration**:
+  - Huawei Cloud Container Engine (CCE) for microservice deployment
+  - Huawei Cloud Application Orchestration Service (AOS) for application lifecycle management
+- **Monitoring**:
+  - Huawei Cloud Application Operations Management (AOM)
+  - Huawei Cloud Application Performance Management (APM)
+
+## Directory Structure
 
 ```
 .
-├── Janus/                      # Janus AI模型实现
-│   ├── generation_inference.py # 图像生成推理脚本
-│   ├── inference.py            # 基础推理脚本
-│   ├── models/                 # 模型文件目录
-│   ├── janus/                  # Janus模块代码
-│   ├── requirements.txt        # 依赖项列表
-│   └── README.md               # Janus项目说明
+├── Janus/                      # Janus AI model implementation
+│   ├── generation_inference.py # Image generation inference script
+│   ├── inference.py            # Base inference script
+│   ├── interactivechat.py      # Multimodal chat implementation
+│   ├── models/                 # Model files directory
+│   ├── janus/                  # Janus module code
+│   ├── images/                 # Sample images for testing
+│   ├── demo/                   # Demo application
+│   └── README.md               # Janus project documentation
 │
-├── SingaReport_提案文件/        # 智慧城市解决方案提案
-│   ├── SingaReport_智慧城市解决方案提案.md    # 主要解决方案文档
-│   ├── SingaReport_演示摘要.txt              # 演示文稿大纲
-│   ├── SingaReport_项目计划.txt              # 项目实施计划
-│   └── README.md                            # 提案文件说明
+├── SingaReport_提案文件/        # Smart city solution proposal
+│   ├── SingaReport_网页应用技术提案.md  # Technical proposal document
+│   └── README.md                        # Proposal files documentation
 │
-└── SingaReport_Web/            # 前端Web应用
-    ├── src/                    # 源代码目录
-    │   ├── app/                # Next.js应用页面
-    │   ├── components/         # 可复用组件
-    │   └── lib/                # 工具函数和库
-    ├── package.json            # npm依赖配置
-    └── PROJECT_STATUS_REPORT.md # 项目状态报告
+└── SingaReport_Web/            # Frontend Web application
+    ├── src/                    # Source code directory
+    │   ├── app/                # Next.js application pages
+    │   │   ├── (auth)/         # Authentication routes
+    │   │   ├── (dashboard)/    # User dashboard routes
+    │   │   ├── (public)/       # Public pages
+    │   │   ├── api/            # API routes
+    │   │   ├── help/           # Help pages
+    │   │   ├── page.tsx        # Landing page
+    │   │   └── layout.tsx      # Root layout
+    │   ├── components/         # Reusable components
+    │   ├── contexts/           # React contexts
+    │   ├── lib/                # Utility functions and libraries
+    │   ├── scripts/            # Helper scripts
+    │   └── types/              # TypeScript type definitions
+    ├── prisma/                 # Database schema and migrations
+    ├── public/                 # Static assets
+    ├── .env                    # Environment configuration
+    ├── next.config.js          # Next.js configuration
+    ├── package.json            # npm dependencies
+    └── PROJECT_STATUS_REPORT.md # Detailed project status report
 ```
 
-## Janus AI 模型说明
+## Installation and Setup
 
-Janus模块是一个强大的多模态AI系统，基于Janus-Pro-7B模型，可以进行：
-- 图像生成
-- 图像分析与理解
-- 多模态对话
+### Prerequisites
+- Node.js 18+ for SingaReport_Web
+- Python 3.10+ for Janus AI
+- PostgreSQL 14+ database
+- NVIDIA GPU with minimum 8GB VRAM for full Janus AI functionality
+- Docker and Docker Compose (optional for containerized deployment)
 
-该模块已针对有限内存的GPU（如RTX 3070 Ti）进行了优化，包含特殊的量化配置和设备映射，确保在普通硬件上也能高效运行。
+### Setting up the Web Application
 
-## SingaReport 解决方案
-
-SingaReport是一个智能城市反馈系统提案，专为新加坡打造，采用华为云作为核心基础设施：
-
-- **用途**：让市民轻松报告城市问题、追踪解决进度，获取市政服务建议
-- **核心技术**：基于微调的Janus-Pro视觉模型，专门识别新加坡路况问题
-- **技术栈**：使用华为云ModelArts、MindSpore框架和华为云容器服务等
-- **项目计划**：包含详细的12个月实施路线图
-
-## SingaReport_Web 前端应用
-
-SingaReport_Web是一个基于Next.js 14开发的现代化Web应用，为SingaReport项目提供用户界面：
-
-- **技术栈**：Next.js、React、TypeScript、Tailwind CSS
-- **主要功能**：
-  - 用户登录和注册系统
-  - 多步骤问题报告创建流程
-  - 地图集成的问题可视化
-  - 响应式设计，支持移动和桌面设备
-- **开发状态**：已实现基本的认证和UI组件，正在进行数据库集成和报告功能开发
-
-### 运行Web应用
-
+1. Clone the repository:
 ```bash
-# 进入Web应用目录
+git clone https://github.com/your-organization/Huawei-demo.git
+cd Huawei-demo
+```
+
+2. Install Web application dependencies:
+```bash
 cd SingaReport_Web
-
-# 安装依赖
 npm install
+```
 
-# 启动开发服务器
+3. Configure environment variables:
+```bash
+# Copy the example environment file
+cp .env.example .env
+
+# Edit the .env file with your configuration
+# Required: DATABASE_URL, JWT_SECRET, NEXTAUTH_URL, etc.
+```
+
+4. Set up the database:
+```bash
+# Run the database setup script
+npx prisma migrate dev
+```
+
+5. Start the development server:
+```bash
 npm run dev
 ```
 
-应用将在 http://localhost:3000 运行。
+The application will be available at http://localhost:3000.
 
-## 安装与使用 (Janus)
+### Setting up Janus AI
 
-### 系统要求
-- Python 3.10+
-- PyTorch 2.0+ 
-- CUDA 12.0+（推荐）
-- 最小8GB GPU内存
-- 建议使用：NVIDIA RTX 3070 Ti或更高
-
-### 安装依赖
-
+1. Install Python dependencies:
 ```bash
-# 安装依赖
 cd Janus
 pip install -r requirements.txt
-
-# 或者直接安装主要依赖
-pip install torch==2.0.1 transformers>=4.38.2 timm>=0.9.16 accelerate>=0.26.0 bitsandbytes>=0.41.0 sentencepiece attrdict einops pillow>=9.0.0 numpy>=1.24.0 diffusers tqdm
 ```
 
-### 下载模型
-
-Janus-Pro-7B模型需要单独下载。您可以从Hugging Face获取：
+2. Download the Janus-Pro-7B model:
 ```bash
-# 创建模型目录
-mkdir -p Janus/models/Janus-Pro-7B
+# Create model directory
+mkdir -p models/Janus-Pro-7B
 
-# 使用git-lfs下载模型
+# Download model using git-lfs
 git lfs install
-git clone https://huggingface.co/deepseek-ai/Janus-Pro-7B Janus/models/Janus-Pro-7B
+git clone https://huggingface.co/deepseek-ai/Janus-Pro-7B models/Janus-Pro-7B
 ```
 
-### 运行图像生成
-
+3. Run the image generation sample:
 ```bash
-# 确保在正确的目录中
-cd Janus
-
-# 运行图像生成脚本
 python generation_inference.py
 ```
 
-## 常见问题解决
+## Usage Examples
 
-### GPU内存不足
-如果遇到GPU内存不足的问题，可以尝试以下方法：
-1. 在`generation_inference.py`中减少`parallel_size`参数值
-2. 调整设备映射，将更多层放到CPU上
-3. 确保启用了8位量化（BitsAndBytes配置）
+### Citizen Reporting Workflow
 
-### CUDA错误
-如果遇到CUDA相关错误：
-1. 确保已安装CUDA 12.0+
-2. 检查PyTorch是否安装了CUDA支持版本
-3. 可以通过`torch.cuda.is_available()`验证CUDA可用性
+1. **User Registration and Login**:
+   - Citizens register with their NRIC/FIN, email, and phone number
+   - Verification via SMS/email for account security
 
-## 版权声明
+2. **Issue Reporting**:
+   - Step 1: Select issue category (Infrastructure, Environment, Safety, etc.)
+   - Step 2: Capture and upload images of the issue
+   - Step 3: Enter location details (auto-detected or manually selected)
+   - Step 4: Provide description and severity assessment
+   - Step 5: Submit report and receive confirmation
 
-- Janus模型基于DeepSeek开源许可
-- SingaReport提案文件和Web应用为原创内容
+3. **Tracking and Updates**:
+   - Dashboard view of all submitted reports
+   - Status updates as the issue progresses through resolution stages
+   - Option to provide additional information if requested
+   - Notification when issue is resolved
 
-## 联系方式
+### Administrator Functions
 
-如有任何问题或需要进一步信息，请联系项目维护者。 
+1. **Issue Management**:
+   - Review incoming reports
+   - Assign to appropriate departments
+   - Set priority levels
+   - Update status
+   - Request additional information
+
+2. **Analytics Dashboard**:
+   - Heatmap of issue concentrations
+   - Statistics by issue type, location, and resolution time
+   - Trend analysis of recurring issues
+   - Performance metrics for resolution efficiency
+
+## Security and Privacy Safeguards
+
+- End-to-end encryption technology
+- Image privacy protection (automatic blurring of faces and license plates)
+- Strict compliance with PDPA (Singapore Personal Data Protection Act)
+- Comprehensive protection mechanisms provided by Huawei Cloud Data Security Center
+- Real-time security monitoring provided by Huawei Cloud Professional Security Operations Services (SOCS)
+- Zero-trust architecture design principles
+- Regular security audits and penetration testing
+
+## Innovation Highlights and Differentiation
+
+### Technical Innovation
+- **Localized Vision AI**: Optimized for Singapore's specific urban environment
+- **Multimodal Processing**: Integration of image, text, and geolocation data
+- **Edge AI Processing**: Partial image analysis completed on the device side, protecting privacy
+- **Decentralized Verification**: Community-involved problem verification mechanism
+
+### User Experience Innovation
+- **Seamless Integration into Daily Life**: Integration with existing social platforms
+- **Ultra-Low Resistance Reporting**: Three-step quick problem reporting process
+- **Multilingual Support**: Covering all official languages of Singapore
+- **Adaptive Interface**: Adjusting feature layout based on user habits
+
+## API Reference
+
+SingaReport_Web provides the following API endpoints:
+
+### Authentication
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
+- `POST /api/auth/logout` - User logout
+- `GET /api/auth/verify` - Token verification
+
+### User Management
+- `GET /api/user/profile` - Get user profile
+- `PUT /api/user/profile` - Update user profile
+- `PUT /api/user/password` - Update password
+
+### Reports
+- `GET /api/reports` - List reports
+- `POST /api/reports` - Create new report
+- `GET /api/reports/[id]` - Get report details
+- `PUT /api/reports/[id]` - Update report
+- `DELETE /api/reports/[id]` - Delete report
+
+### Media
+- `POST /api/upload` - Upload media files
+- `GET /api/media/[id]` - Get media file
+
+## Deployment
+
+### Development Environment
+- Local development server with hot reloading
+- Local PostgreSQL database
+- MockAPI for third-party service simulation
+
+### Production Environment (Huawei Cloud)
+- Containerized application hosted on Huawei CCE
+- Auto-scaling based on traffic patterns
+- PostgreSQL on Huawei RDS
+- Static assets served through Huawei OBS and CDN
+- API Gateway for request routing and rate limiting
+
+## License
+
+- Janus model is licensed under DeepSeek open source license
+- SingaReport proposal documents and Web application are original content 
