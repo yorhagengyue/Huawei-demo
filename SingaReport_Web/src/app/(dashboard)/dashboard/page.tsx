@@ -61,12 +61,13 @@ export default function DashboardPage() {
     checkAuth();
   }, [checkAuth]);
   
-  // 如果用户未认证且加载完成，重定向到登录页面
-  if (!isAuthenticated && !isLoading) {
-    router.replace('/login');
-    return null;
-  }
-
+  // 认证状态改变时处理重定向
+  useEffect(() => {
+    if (!isAuthenticated && !isLoading) {
+      router.replace('/login');
+    }
+  }, [isAuthenticated, isLoading, router]);
+  
   // 从API获取报告数据
   useEffect(() => {
     async function fetchReports() {
@@ -115,6 +116,16 @@ export default function DashboardPage() {
       fetchReports();
     }
   }, [isAuthenticated]);
+  
+  // 如果正在加载，显示加载状态
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
+        <span className="ml-3 text-gray-500">Loading...</span>
+      </div>
+    );
+  }
 
   // 基于活动标签筛选报告
   const filteredReports = reports.filter(report => {

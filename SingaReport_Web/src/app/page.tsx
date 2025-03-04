@@ -7,17 +7,28 @@ import WelcomePrompt from '@/components/welcome/WelcomePrompt';
 import { useAuth } from '@/contexts/AuthContext';
 import { FiMapPin, FiCheckCircle, FiAlertTriangle, FiInfo, FiArrowRight } from 'react-icons/fi';
 import { Info } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+// Dynamically import map components to ensure they only load client-side
+const MapContainer = dynamic(() => import('@/components/maps/MapContainer'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[400px] flex items-center justify-center bg-gray-100 rounded-lg">
+      <div className="text-center">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mb-2"></div>
+        <p className="text-gray-500">Loading map...</p>
+      </div>
+    </div>
+  )
+});
 
 export default function Home() {
   const { user, isLoading } = useAuth();
-  const [isMapLoading, setIsMapLoading] = useState(true);
+  const [isMapVisible, setIsMapVisible] = useState(false);
 
-  // Simulate map loading
+  // Ensure map only renders on client-side
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsMapLoading(false);
-    }, 2000);
-    return () => clearTimeout(timer);
+    setIsMapVisible(true);
   }, []);
 
   // Categories for the feature section
@@ -64,83 +75,92 @@ export default function Home() {
   ];
 
   return (
-    <main className="min-h-screen">
+    <main className="flex min-h-screen flex-col">
       {/* First-time visitor prompt */}
       <WelcomePrompt />
       
-      {/* Hero Section - Personalized for logged in users */}
-      <section className="bg-gradient-to-b from-primary/5 to-white py-12 md:py-20">
+      {/* Hero section */}
+      <section className="bg-gradient-to-b from-blue-50 to-white pt-16 pb-20">
         <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto text-center">
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              {!isLoading && user ? 
-                `Welcome back, ${user.name || user.username}!` : 
-                'Singapore Urban Issues Reporting Platform'}
-            </h1>
-            <p className="text-xl text-gray-600 mb-8">
-              {!isLoading && user ? 
-                'Continue making an impact in your community by reporting and tracking urban issues.' : 
-                'Report urban issues, track progress, and improve your community'}
-            </p>
-            <div className="flex flex-wrap justify-center gap-4">
-              <Link
-                href="/report"
-                className="bg-primary text-white px-6 py-3 rounded-md hover:bg-primary/90 transition-colors font-medium flex items-center"
-              >
-                Report an Issue <FiArrowRight className="ml-2" />
-              </Link>
-              
-              {!isLoading && user ? (
-                <Link
-                  href="/dashboard"
-                  className="bg-white text-primary border border-primary px-6 py-3 rounded-md hover:bg-primary/5 transition-colors font-medium"
+          <div className="flex flex-col md:flex-row items-center justify-between">
+            <div className="md:w-1/2 mb-10 md:mb-0">
+              <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                Make Singapore Better <span className="text-primary">Together</span>
+              </h1>
+              <p className="text-lg text-gray-600 mb-8">
+                Report urban issues, track their resolution, and help improve our city. Your feedback creates a better Singapore for everyone.
+              </p>
+              <div className="flex flex-wrap gap-4">
+                <Link 
+                  href="/report/new" 
+                  className="px-6 py-3 bg-primary hover:bg-primary/90 text-white font-medium rounded-lg shadow-md transition-colors"
                 >
-                  View My Reports
+                  Report an Issue
                 </Link>
-              ) : (
-                <Link
-                  href="/map"
-                  className="bg-white text-primary border border-primary px-6 py-3 rounded-md hover:bg-primary/5 transition-colors font-medium"
+                <Link 
+                  href="/map" 
+                  className="px-6 py-3 bg-white hover:bg-gray-50 text-primary font-medium rounded-lg shadow-md border border-gray-200 transition-colors"
                 >
-                  View Active Reports
+                  View Issue Map
                 </Link>
-              )}
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Real-time map preview */}
-      <section className="py-12 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="max-w-5xl mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-10">Real-time Hotspot Map</h2>
-            <div className="relative h-[400px] bg-gray-100 rounded-lg overflow-hidden border border-gray-200 shadow-md">
-              {isMapLoading ? (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center bg-gray-100 rounded-md h-80 w-full">
-                  <Info className="h-12 w-12 text-gray-400" />
-                  <p className="text-gray-500 ml-2">地图预览暂不可用</p>
-                </div>
-              )}
-              <div className="absolute bottom-4 right-4">
-                <Link
-                  href="/map"
-                  className="bg-white text-primary px-4 py-2 rounded-md shadow-md hover:bg-gray-50 transition-colors text-sm font-medium flex items-center"
-                >
-                  Open Full Map <FiArrowRight className="ml-1" />
-                </Link>
+            <div className="md:w-1/2 flex justify-center">
+              <div className="relative w-full max-w-md">
+                <Image
+                  src="/logo.png"
+                  alt="SingaReport Logo"
+                  width={500}
+                  height={400}
+                  className="rounded-lg shadow-lg"
+                  priority
+                />
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Categories Section */}
-      <section className="py-12 bg-gray-50">
+      {/* Real-time Hotspot Map */}
+      <section className="py-12 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-gray-900">Real-time Hotspot Map</h2>
+            <p className="text-gray-600 mt-2">See where issues are being reported around Singapore</p>
+          </div>
+          
+          <div className="h-[400px] relative rounded-lg overflow-hidden shadow-lg">
+            {typeof window !== 'undefined' && isMapVisible && (
+              <MapContainer 
+                center={{ lat: 1.3521, lng: 103.8198 }} 
+                zoom={11}
+              />
+            )}
+            
+            {(!isMapVisible || typeof window === 'undefined') && (
+              <div className="h-full w-full flex items-center justify-center bg-gray-100">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary mx-auto mb-2"></div>
+                  <p className="text-gray-500">Loading map...</p>
+                </div>
+              </div>
+            )}
+            
+            <div className="absolute bottom-4 right-4">
+              <Link 
+                href="/map" 
+                className="px-4 py-2 bg-white text-primary hover:bg-gray-50 font-medium rounded-lg shadow-md transition-colors flex items-center space-x-1"
+              >
+                <span>View Full Map</span>
+                <FiArrowRight className="h-4 w-4 ml-1" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* What Can You Report? Section */}
+      <section className="py-12 bg-white">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-10">What Can You Report?</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import MapContainer from '@/components/maps/MapContainer';
+import MapMarker from '@/components/maps/MapMarker';
+import { Info } from 'lucide-react';
 
 // Sample data for development
 const SAMPLE_REPORTS = [
@@ -352,42 +355,24 @@ export default function MapPage() {
                   </div>
                 </div>
               ) : (
-                <div className="absolute inset-0 bg-gray-200">
-                  {/* This would be replaced with an actual map component */}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <p className="text-gray-500 mb-3">Interactive Map Placeholder</p>
-                      <p className="text-xs text-gray-400">
-                        In a real implementation, this would use a mapping library like Google Maps, 
-                        Mapbox, or Leaflet to display the reports on an interactive map of Singapore.
-                      </p>
-                      <div className="mt-8 grid grid-cols-3 gap-4 max-w-md mx-auto">
-                        {filteredReports.map((report) => (
-                          <div 
-                            key={report.id} 
-                            className="bg-white p-2 rounded-lg shadow-md text-center"
-                            style={{
-                              position: 'absolute',
-                              left: `${(report.location.longitude - 103.75) * 500}px`,
-                              top: `${(1.36 - report.location.latitude) * 500}px`,
-                            }}
-                          >
-                            <div 
-                              className="w-10 h-10 mx-auto rounded-full flex items-center justify-center text-white"
-                              style={{
-                                backgroundColor: report.status === 'resolved' ? '#16a34a' : 
-                                                report.status === 'in_progress' ? '#9333ea' : 
-                                                report.status === 'under_review' ? '#2563eb' : '#eab308'
-                              }}
-                            >
-                              {getCategoryIcon(report.category)}
-                            </div>
-                            <div className="text-xs mt-1 font-medium">{report.id}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                <div className="absolute inset-0">
+                  {typeof window !== 'undefined' && (
+                    <MapContainer>
+                      {filteredReports.map((report) => (
+                        <MapMarker
+                          key={report.id}
+                          position={{
+                            lat: report.location.latitude ?? 1.3521, // Default to Singapore center if null
+                            lng: report.location.longitude ?? 103.8198
+                          }}
+                          onClick={() => {
+                            // Navigate to report details page
+                            window.location.href = `/report/${report.id}`;
+                          }}
+                        />
+                      ))}
+                    </MapContainer>
+                  )}
                 </div>
               )}
             </div>

@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       role: user.role || 'USER'
     });
 
-    // Create response with token
+    // Create response with token and user data
     const response = NextResponse.json({
       success: true,
       message: 'Login successful',
@@ -86,7 +86,8 @@ export async function POST(request: NextRequest) {
         email: user.email,
         name: user.name,
         role: user.role
-      }
+      },
+      token: token // Explicitly include token in the response body
     });
 
     // Set authentication cookie

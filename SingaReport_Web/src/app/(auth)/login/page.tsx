@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Eye, EyeOff } from 'lucide-react';
+import AuthErrorAlert from '@/components/auth/AuthErrorAlert';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading, checkAuth } = useAuth();
+  const { user, isLoading: authLoading, checkAuth, login } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -47,40 +48,40 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Call the login API
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
+      // Get login credentials from form
+      const { email, password } = formData;
+      
+      if (!email || !password) {
+        throw new Error('Email and password are required');
       }
       
-      // 保存令牌到localStorage
-      if (data.token) {
-        localStorage.setItem('auth_token', data.token);
+      console.log('Starting login process with email:', email);
+      
+      // Use the login function that was destructured in the component level
+      const success = await login(email, password);
+      
+      if (!success) {
+        throw new Error('Authentication failed. Please check your credentials.');
       }
       
-      // Check authentication after successful login
-      await checkAuth();
+      console.log('Login successful, redirecting to dashboard...');
       
-      // Delay redirect to ensure state is updated
-      setTimeout(() => {
-        // Success - redirect to dashboard
-        router.push('/dashboard');
-      }, 500);
+      // If login was successful, redirect to dashboard
+      router.push('/dashboard');
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Invalid email or password. Please try again.');
+      // Provide specific error messages in English
+      if (err.message.includes('Email and password')) {
+        setError('Email and password are required.');
+      } else if (err.message.includes('Email or password is incorrect')) {
+        setError('Invalid email or password. Please check your credentials and try again.');
+      } else if (err.message.includes('Authentication failed')) {
+        setError('Authentication failed. Please check your credentials and try again.');
+      } else if (err.message.includes('Server error')) {
+        setError('Server error occurred. Please try again later.');
+      } else {
+        setError(err.message || 'Login failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -118,9 +119,10 @@ export default function LoginPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-              {error}
-            </div>
+            <AuthErrorAlert 
+              message={error}
+              onClose={() => setError('')}
+            />
           )}
           
           <form className="space-y-6" onSubmit={handleSubmit}>

@@ -42,6 +42,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
   
   // Use useRef to track if authentication has been checked
   const hasCheckedAuth = useRef(false);
@@ -49,8 +50,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const lastAuthCheck = useRef<number>(0);
   const AUTH_CHECK_INTERVAL = 60000; // 60 seconds
   
+  // 设置客户端标志
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
   // Event listeners for cross-tab synchronization
   const setupEventListeners = useCallback(() => {
+    if (typeof window === 'undefined') return () => {};
+    
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key === 'auth_event') {
         const authEvent = JSON.parse(event.newValue || '{}');
@@ -68,6 +76,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Broadcast authentication state changes
   const broadcastAuthStateChange = (type: 'login' | 'logout') => {
+    if (typeof window === 'undefined') return;
+    
     localStorage.setItem('auth_event', JSON.stringify({ type, timestamp: Date.now() }));
     
     // Also use custom events for communication within the same tab
@@ -79,7 +89,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Function to check if user is authenticated
   const checkAuth = useCallback(async (): Promise<boolean> => {
-    // If check is in progress, return
+    // If not in client environment, return false
+    if (typeof window === 'undefined' || !isClient) {
+      return false;
+    }
+    
+    // If check is already in progress, return current user state
     if (authCheckInProgress.current) {
       return !!user;
     }
@@ -95,10 +110,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setIsLoading(true);
 
     try {
-      // 获取localStorage中的令牌
+      // Get token from localStorage
       const token = localStorage.getItem('auth_token');
       
-      // 准备请求头
+      // If no token in localStorage, try to get from cookies (if cookies are accessible)
+      let effectiveToken = token;
+      if (!effectiveToken) {
+        try {
+          const cookies = document.cookie.split(';');
+          const authCookie = cookies.find(cookie => cookie.trim().startsWith('auth_token='));
+          if (authCookie) {
+            effectiveToken = authCookie.split('=')[1];
+            console.log('Token found in cookies');
+          }
+        } catch (e) {
+          console.warn('Failed to get token from cookies:', e);
+        }
+      }
+      
+      // If no token found, return unauthenticated
+      if (!effectiveToken) {
+        console.log('Authentication token not found');
+        setUser(null);
+        return false;
+      }
+      
+      // Prepare request headers
       const headers: HeadersInit = {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -106,12 +143,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         'Expires': '0'
       };
       
-      // 如果有令牌,添加到请求头
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+      // Add token to Authorization header if available
+      if (effectiveToken) {
+        headers['Authorization'] = `Bearer ${effectiveToken}`;
       }
       
       // Call verification API
+      console.log('Sending verification request...');
       const response = await fetch('/api/auth/verify', {
         method: 'GET',
         credentials: 'include',
@@ -121,18 +159,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       const data = await response.json();
+      console.log('Verification response:', response.status, data);
 
       // Update last check time
       lastAuthCheck.current = Date.now();
       hasCheckedAuth.current = true;
 
       if (response.ok && data.user) {
+        // If response includes token, update localStorage
+        if (data.token) {
+          console.log('Updating token from verification response');
+          localStorage.setItem('auth_token', data.token);
+        }
+        
         setUser(data.user);
         setAuthError(null);
         return true;
       } else {
+        console.log('Verification failed, clearing user state');
         setUser(null);
-        // 如果验证失败,清除本地令牌
+        // If verification fails, clear local token
         localStorage.removeItem('auth_token');
         return false;
       }
@@ -140,23 +186,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('Authentication check failed:', error);
       setUser(null);
       setAuthError('Authentication check failed');
-      // 发生错误时清除本地令牌
+      // Clear local token on error
       localStorage.removeItem('auth_token');
       return false;
     } finally {
       setIsLoading(false);
       authCheckInProgress.current = false;
     }
-  }, [user]);
+  }, [user, isClient]);
 
   // Login functionality
   const login = async (email: string, password: string): Promise<boolean> => {
+    // Check if we're in client environment
+    if (typeof window === 'undefined' || !isClient) {
+      console.error('Cannot perform login on server side');
+      return false;
+    }
+    
     setIsLoading(true);
     setAuthError(null);
 
     try {
-      // 添加调试日志
-      console.log('尝试登录:', email);
+      // Add debug log
+      console.log('Attempting login with email:', email);
       
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -169,40 +221,62 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const data = await response.json();
       
-      // 添加调试日志
-      console.log('登录响应状态:', response.status, response.ok);
+      // Detailed debug logs
+      console.log('Login response status:', response.status, response.ok);
+      console.log('Login response data:', JSON.stringify(data));
 
       if (!response.ok) {
+        console.error('Login request failed:', data.error || 'Unknown error');
         throw new Error(data.error || 'Login failed');
       }
 
-      // 保存令牌到localStorage以便API调用
+      // Extract token from response
       if (data.token) {
-        console.log('保存令牌到localStorage');
+        console.log('Token found in response body');
         localStorage.setItem('auth_token', data.token);
       } else {
-        console.warn('登录响应中没有令牌');
+        console.log('No token in response, trying to get from cookies');
+        // Try to get token from cookies (if our API sets non-HttpOnly cookies)
+        const cookies = document.cookie.split(';');
+        const authCookie = cookies.find(cookie => cookie.trim().startsWith('auth_token='));
+        
+        if (authCookie) {
+          const token = authCookie.split('=')[1];
+          localStorage.setItem('auth_token', token);
+          console.log('Token retrieved from cookies');
+        } else {
+          console.warn('Login successful but could not retrieve token, possibly using HttpOnly cookies');
+        }
       }
 
-      // 手动设置用户数据以防止必须等待checkAuth
+      // Set user data immediately to prevent having to wait for checkAuth
       if (data.user) {
+        console.log('Setting user data:', data.user);
         setUser(data.user);
       }
 
-      // Verify multiple times after login to ensure state synchronization
+      // Verify authentication status after login
+      console.log('Checking authentication after login');
       await checkAuth();
       
       // Broadcast login event
       broadcastAuthStateChange('login');
       
-      // Delay to ensure cookie and state updates
+      // Small delay to ensure cookie and state updates
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Check again to ensure state consistency
+      // Check again to ensure authentication state consistency
       const isAuthenticated = await checkAuth();
+      console.log('Final authentication status:', isAuthenticated);
+      
+      if (!isAuthenticated) {
+        console.error('Login appeared successful but auth check failed');
+        throw new Error('Authentication verification failed. Please try again.');
+      }
+      
       return isAuthenticated;
     } catch (error: any) {
-      console.error('登录失败:', error);
+      console.error('Login failed:', error);
       setAuthError(error.message || 'Login failed');
       return false;
     } finally {
@@ -212,78 +286,86 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Logout functionality
   const logout = async (): Promise<void> => {
+    // Check if running in client-side environment
+    if (typeof window === 'undefined' || !isClient) {
+      console.error('Cannot execute logout on server-side');
+      return;
+    }
+    
+    // Set loading state before making request
     setIsLoading(true);
-
+    
     try {
-      // 先在客户端清除状态
-      setUser(null);
-      localStorage.removeItem('auth_token');
-      
-      // 然后调用服务器注销API
+      // Call logout API to clear cookies
       const response = await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Logout failed');
-      }
       
-      // Broadcast logout event
+      if (!response.ok) {
+        console.error(`Logout API error: ${response.status} ${response.statusText}`);
+      }
+
+      // Clear local state
+      setUser(null);
+      setAuthError(null);
+      
+      // Clear local storage
+      localStorage.removeItem('auth_token');
+      
+      // Broadcast logout event to other tabs
       broadcastAuthStateChange('logout');
+      
+      console.log('Logout completed successfully');
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      setIsLoading(false);
+      // Check if component is still mounted before updating state
+      if (isClient) {
+        setIsLoading(false);
+      }
     }
   };
 
   // Register functionality
   const register = async (userData: RegisterData): Promise<boolean> => {
+    // 如果不在客户端，直接返回
+    if (typeof window === 'undefined' || !isClient) {
+      console.error('无法在服务器端执行注册');
+      return false;
+    }
+    
     setIsLoading(true);
     setAuthError(null);
 
     try {
-      // 添加调试日志
-      console.log('尝试注册用户:', userData.username);
-      
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(userData),
-        credentials: 'include',
       });
 
       const data = await response.json();
-      
-      // 添加调试日志
-      console.log('注册响应状态:', response.status, response.ok);
 
       if (!response.ok) {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // 保存令牌到localStorage以便API调用
+      // 如果注册后自动登录,设置令牌和用户数据
       if (data.token) {
-        console.log('保存注册令牌到localStorage');
         localStorage.setItem('auth_token', data.token);
-      } else {
-        console.warn('注册响应中没有令牌');
       }
 
-      // Register successfully, set user without login again
       if (data.user) {
         setUser(data.user);
         broadcastAuthStateChange('login');
-        return true;
       }
 
-      // 如果没有返回用户数据,通过登录获取
-      return await login(userData.email, userData.password);
+      return true;
     } catch (error: any) {
+      console.error('Registration error:', error);
       setAuthError(error.message || 'Registration failed');
       return false;
     } finally {
@@ -291,12 +373,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // Component mount, set event listeners, and check authentication status
+  // Initialize authentication check and event listeners
   useEffect(() => {
-    // Set event listeners
+    if (!isClient) return;
+    
+    // Set up event listeners for cross-tab auth state sync
     const cleanup = setupEventListeners();
     
-    // Check authentication status when page loads
+    // Only check auth if we haven't checked yet
     if (!hasCheckedAuth.current) {
       checkAuth();
     }
@@ -323,7 +407,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       document.removeEventListener('auth_state_changed', handleAuthStateChanged);
       clearInterval(intervalId);
     };
-  }, [checkAuth, setupEventListeners]);
+  }, [checkAuth, setupEventListeners, isClient]);
 
   // Provide context value
   const contextValue: AuthContextType = {
@@ -347,23 +431,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 // Custom hook
 export const useAuth = () => useContext(AuthContext);
 
-// Custom hook function to listen for authentication status changes
+// Hook for syncing authentication state in components based on local storage changes
 export const useAuthSync = () => {
-  const [, setForceUpdate] = useState({});
-
+  const { checkAuth } = useAuth();
+  
   useEffect(() => {
-    // Force update when authentication status changes
+    if (typeof window === 'undefined') return;
+    
     const handleAuthStateChange = () => {
-      setForceUpdate({});
+      checkAuth();
     };
-
-    // Listen for custom authentication status change events
+    
+    // Add event listeners
     document.addEventListener('auth_state_changed', handleAuthStateChange);
     
-    // Listen for localStorage changes
     const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === 'auth_event') {
-        setForceUpdate({});
+      if (event.key === 'auth_token' || event.key === 'auth_event') {
+        checkAuth();
       }
     };
     
@@ -373,7 +457,7 @@ export const useAuthSync = () => {
       document.removeEventListener('auth_state_changed', handleAuthStateChange);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [checkAuth]);
 };
 
 export default AuthContext; 

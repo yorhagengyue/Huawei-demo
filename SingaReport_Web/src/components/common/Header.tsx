@@ -18,7 +18,12 @@ export default function Header() {
   // Track component mounting state with refs
   const isMounted = useRef(false);
   const initialLoadComplete = useRef(false);
-  const authCheckPerformed = useRef(false);
+  
+  // 始终确保所有条件分支都渲染相同数量的Hooks - 放在组件顶部
+  useEffect(() => {
+    // 标记初始加载完成
+    initialLoadComplete.current = true;
+  }, []);
   
   // Handle initial auth check once on mount
   useEffect(() => {
@@ -26,20 +31,12 @@ export default function Header() {
     isMounted.current = true;
     
     // Only perform auth check once
-    const performInitialAuthCheck = async () => {
-      if (!authCheckPerformed.current) {
-        console.log('📋 Header: Performing initial auth check');
-        await checkAuth();
-        authCheckPerformed.current = true;
-        
-        // Short delay to ensure state is applied before marking complete
-        setTimeout(() => {
-          initialLoadComplete.current = true;
-        }, 50);
-      }
+    const checkAuthentication = async () => {
+      console.log('Header: Performing initial auth check');
+      await checkAuth();
     };
     
-    performInitialAuthCheck();
+    checkAuthentication();
     
     // Set up event listener for auth changes
     const handleAuthChange = () => {
@@ -49,6 +46,7 @@ export default function Header() {
     document.addEventListener('auth_state_change', handleAuthChange);
     
     return () => {
+      isMounted.current = false;
       document.removeEventListener('auth_state_change', handleAuthChange);
     };
   }, [checkAuth]);
@@ -65,21 +63,31 @@ export default function Header() {
     setIsMenuOpen(false);
     setShowLogoutConfirm(false);
     
-    console.log('🚪 Header: Initiating logout');
-    await logout();
-    
-    // Force refresh the page - only after successful logout
-    window.location.href = '/';
+    try {
+      console.log('🚪 Header: Initiating logout');
+      await logout();
+      
+      // 使用setTimeout而不是直接跳转，确保状态更新完成
+      setTimeout(() => {
+        // 只有在组件仍然挂载时才重定向
+        if (isMounted.current) {
+          window.location.href = '/';
+        }
+      }, 0);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
   
   const cancelLogout = () => {
     setShowLogoutConfirm(false);
   };
 
-  // Server-side rendering placeholder
-  if (!isMounted.current) {
-    return (
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+  // 使用renderContent函数来处理条件渲染，避免在组件中间返回
+  const renderContent = () => {
+    // Server-side rendering placeholder
+    if (!isMounted.current) {
+      return (
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
@@ -88,14 +96,12 @@ export default function Header() {
             <div className="h-10 w-40 bg-gray-100 animate-pulse rounded-md"></div>
           </div>
         </div>
-      </header>
-    );
-  }
+      );
+    }
 
-  // Loading state - during initial auth check
-  if (isLoading && !initialLoadComplete.current) {
-    return (
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+    // Loading state - during initial auth check
+    if (isLoading && !initialLoadComplete.current) {
+      return (
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center h-16">
             <Link href="/" className="flex items-center space-x-2">
@@ -104,12 +110,11 @@ export default function Header() {
             <div className="h-10 w-40 bg-gray-100 animate-pulse rounded-md"></div>
           </div>
         </div>
-      </header>
-    );
-  }
+      );
+    }
 
-  return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+    // 标准渲染内容
+    return (
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -383,6 +388,15 @@ export default function Header() {
           </div>
         )}
       </div>
+    );
+  };
+
+  // 返回完整的header组件和确认对话框
+  return (
+    <>
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        {renderContent()}
+      </header>
 
       {/* Logout Confirmation Dialog */}
       <ConfirmDialog
@@ -395,6 +409,6 @@ export default function Header() {
         onCancel={cancelLogout}
         type="warning"
       />
-    </header>
+    </>
   );
 } 
