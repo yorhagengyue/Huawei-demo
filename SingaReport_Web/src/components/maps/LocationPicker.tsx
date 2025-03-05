@@ -18,6 +18,24 @@ const MapContainer = dynamic(() => import('./MapContainer'), {
 const MapMarker = dynamic(() => import('./MapMarker'), { ssr: false });
 const MapSearchBox = dynamic(() => import('./MapSearchBox'), { ssr: false });
 
+// Singapore geographic boundaries definition
+const SINGAPORE_BOUNDS = {
+  north: 1.4504,  // Northern boundary
+  south: 1.1304,  // Southern boundary
+  east: 104.0904, // Eastern boundary
+  west: 103.6055  // Western boundary
+};
+
+// Validate if location is within Singapore boundaries
+const isLocationInSingapore = (lat: number, lng: number): boolean => {
+  return (
+    lat <= SINGAPORE_BOUNDS.north &&
+    lat >= SINGAPORE_BOUNDS.south &&
+    lng <= SINGAPORE_BOUNDS.east &&
+    lng >= SINGAPORE_BOUNDS.west
+  );
+};
+
 interface LocationPickerProps {
   onLocationSelected: (location: {
     latitude: number;
@@ -35,48 +53,74 @@ export default function LocationPicker({
   onLocationSelected, 
   initialLocation 
 }: LocationPickerProps) {
-  // 检查客户端环境 - 移动到组件开始
+  // Check client environment - moved to component start
   const [isClient, setIsClient] = useState(false);
   
-  // 使用useEffect确保组件仅在客户端执行与google maps相关的代码
+  // Use useEffect to ensure component only executes Google Maps related code on client
   useEffect(() => {
     setIsClient(true);
   }, []);
   
-  // 在客户端环境中初始化状态
+  // Initialize state in client environment
   const [markerPosition, setMarkerPosition] = useState<any>(null);
   const [address, setAddress] = useState('');
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
   
-  // 仅在客户端环境中设置初始位置
+  // Set initial position only in client environment
   useEffect(() => {
     if (isClient && initialLocation?.latitude && initialLocation?.longitude) {
-      setMarkerPosition({ 
-        lat: initialLocation.latitude, 
-        lng: initialLocation.longitude 
-      });
-      setAddress(initialLocation?.address || '');
+      const lat = initialLocation.latitude;
+      const lng = initialLocation.longitude;
+      
+      // Validate if initial location is within Singapore boundaries
+      if (isLocationInSingapore(lat, lng)) {
+        setMarkerPosition({ lat, lng });
+        setAddress(initialLocation?.address || '');
+        setLocationError(null);
+      } else {
+        setLocationError("Location must be within Singapore's boundaries.");
+      }
     }
   }, [isClient, initialLocation]);
 
   const handleMapClick = useCallback((e: google.maps.MapMouseEvent) => {
     if (!e.latLng || !isClient) return;
     
+    const newLat = e.latLng.lat();
+    const newLng = e.latLng.lng();
+    
+    // Validate if clicked position is within Singapore boundaries
+    if (!isLocationInSingapore(newLat, newLng)) {
+      setLocationError("Selected location is outside Singapore. Please select a location within Singapore's boundaries.");
+      return;
+    }
+    
+    // Clear location error
+    setLocationError(null);
+    
     const newPosition = {
-      lat: e.latLng.lat(),
-      lng: e.latLng.lng()
+      lat: newLat,
+      lng: newLng
     };
     setMarkerPosition(newPosition);
     setGeocodeError(null);
     
-    // 确保在客户端环境中且window.google已定义
+    // Ensure we're in client environment and window.google is defined
     if (isClient && typeof window !== 'undefined' && window.google) {
       try {
         const geocoder = new google.maps.Geocoder();
         geocoder.geocode({ location: newPosition }, (results, status) => {
           if (status === 'OK' && results && results[0]) {
             const newAddress = results[0].formatted_address;
+            
+            // Validate if address contains "Singapore"
+            if (!newAddress.includes("Singapore")) {
+              setGeocodeError("Selected location appears to be outside Singapore. Please select a location within Singapore.");
+              return;
+            }
+            
             setAddress(newAddress);
             onLocationSelected({
               latitude: newPosition.lat,
@@ -105,7 +149,7 @@ export default function LocationPicker({
         });
       }
     } else {
-      // 如果Google API未加载，仍然更新位置但不进行地理编码
+      // If Google API is not loaded, still update location but without geocoding
       onLocationSelected({
         latitude: newPosition.lat,
         longitude: newPosition.lng,
@@ -117,20 +161,39 @@ export default function LocationPicker({
   const handleMarkerDragEnd = useCallback((e: google.maps.MapMouseEvent) => {
     if (!e.latLng || !isClient) return;
     
+    const newLat = e.latLng.lat();
+    const newLng = e.latLng.lng();
+    
+    // Validate if position after drag is within Singapore boundaries
+    if (!isLocationInSingapore(newLat, newLng)) {
+      setLocationError("Marker location is outside Singapore. Please place the marker within Singapore's boundaries.");
+      return;
+    }
+    
+    // Clear location error
+    setLocationError(null);
+    
     const newPosition = {
-      lat: e.latLng.lat(),
-      lng: e.latLng.lng()
+      lat: newLat,
+      lng: newLng
     };
     setMarkerPosition(newPosition);
     setGeocodeError(null);
     
-    // 确保在客户端环境且window.google已定义
+    // Ensure we're in client environment and window.google is defined
     if (isClient && typeof window !== 'undefined' && window.google) {
       try {
         const geocoder = new google.maps.Geocoder();
         geocoder.geocode({ location: newPosition }, (results, status) => {
           if (status === 'OK' && results && results[0]) {
             const newAddress = results[0].formatted_address;
+            
+            // Validate if address contains "Singapore"
+            if (!newAddress.includes("Singapore")) {
+              setGeocodeError("Selected location appears to be outside Singapore. Please select a location within Singapore.");
+              return;
+            }
+            
             setAddress(newAddress);
             onLocationSelected({
               latitude: newPosition.lat,
@@ -157,7 +220,7 @@ export default function LocationPicker({
         });
       }
     } else {
-      // 如果Google API未加载，仍然更新位置但不进行地理编码
+      // If Google API is not loaded, still update location but without geocoding
       onLocationSelected({
         latitude: newPosition.lat,
         longitude: newPosition.lng,
@@ -172,9 +235,29 @@ export default function LocationPicker({
       return;
     }
     
+    const newLat = place.geometry.location.lat();
+    const newLng = place.geometry.location.lng();
+    
+    // Validate if search selected location is within Singapore boundaries
+    if (!isLocationInSingapore(newLat, newLng)) {
+      setLocationError("Selected place is outside Singapore. Please select a location within Singapore's boundaries.");
+      return;
+    }
+    
+    // Validate if address matches "xjp" (special condition)
+    if (place.formatted_address && place.formatted_address.toLowerCase() === "xjp") {
+      // If it's xjp, process normally
+    } else if (place.formatted_address && !place.formatted_address.includes("Singapore")) {
+      setLocationError("Only locations within Singapore are allowed.");
+      return;
+    }
+    
+    // Clear location error
+    setLocationError(null);
+    
     const newPosition = {
-      lat: place.geometry.location.lat(),
-      lng: place.geometry.location.lng()
+      lat: newLat,
+      lng: newLng
     };
     
     setMarkerPosition(newPosition);
@@ -196,7 +279,7 @@ export default function LocationPicker({
     setGeocodeError(null);
   }, [onLocationSelected]);
 
-  // 为服务器渲染和客户端渲染提供一致的结构
+  // Provide consistent structure for both server and client rendering
   return (
     <div className="flex flex-col space-y-4">
       <div className="bg-white p-1 rounded-lg shadow-md" style={{ height: '400px' }}>
@@ -210,6 +293,7 @@ export default function LocationPicker({
           <MapContainer
             onClick={handleMapClick}
             mapContainerStyle={{ height: '100%', width: '100%', borderRadius: '0.5rem' }}
+            restrictToBounds={SINGAPORE_BOUNDS} // Pass restriction boundaries to map component
           >
             {markerPosition && (
               <MapMarker
@@ -231,6 +315,12 @@ export default function LocationPicker({
         </div>
       )}
 
+      {locationError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-red-600 text-sm">{locationError}</p>
+        </div>
+      )}
+
       {geocodeError && (
         <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
           <p className="text-yellow-700 text-sm">{geocodeError}</p>
@@ -246,7 +336,7 @@ export default function LocationPicker({
 
       <div className="flex items-start space-x-2 text-gray-500 text-sm">
         <Info className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-        <p>Click on the map to select a location or use the search box to find an address. You can drag the marker to adjust the location.</p>
+        <p>Click on the map to select a location or use the search box to find an address. Only locations within Singapore are allowed.</p>
       </div>
     </div>
   );

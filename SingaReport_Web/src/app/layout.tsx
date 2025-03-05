@@ -5,6 +5,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 
 import Header from '@/components/common/Header';
 import Footer from '@/components/common/Footer';
+import ClientPageWrapper from '@/components/common/ClientPageWrapper';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -25,7 +26,9 @@ export default function RootLayout({
           <div className="flex flex-col min-h-screen">
             <Header />
             <main className="flex-grow">
-              {children}
+              <ClientPageWrapper>
+                {children}
+              </ClientPageWrapper>
             </main>
             <Footer />
           </div>

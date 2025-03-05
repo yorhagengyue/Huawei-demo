@@ -18,6 +18,14 @@ const defaultCenter = {
   lng: 103.8198
 };
 
+// Default Singapore boundaries
+const DEFAULT_SINGAPORE_BOUNDS = {
+  north: 1.4504,  // Northern boundary
+  south: 1.1304,  // Southern boundary
+  east: 104.0904, // Eastern boundary
+  west: 103.6055  // Western boundary
+};
+
 // Libraries needed for the Maps API
 const libraries: LoadScriptProps['libraries'] = ['places'];
 
@@ -27,6 +35,12 @@ interface MapContainerProps {
   onClick?: (e: google.maps.MapMouseEvent) => void;
   children?: React.ReactNode;
   mapContainerStyle?: React.CSSProperties;
+  restrictToBounds?: {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+  };
 }
 
 export default function MapContainer({ 
@@ -34,7 +48,8 @@ export default function MapContainer({
   zoom = 12, 
   onClick, 
   children,
-  mapContainerStyle = containerStyle
+  mapContainerStyle = containerStyle,
+  restrictToBounds
 }: MapContainerProps) {
   // Check if we're in browser environment
   const [isClient, setIsClient] = useState(false);
@@ -62,6 +77,7 @@ export default function MapContainer({
       zoom={zoom} 
       onClick={onClick} 
       mapContainerStyle={mapContainerStyle}
+      restrictToBounds={restrictToBounds}
     >
       {children}
     </ClientMap>
@@ -74,7 +90,8 @@ function ClientMap({
   zoom, 
   onClick, 
   children,
-  mapContainerStyle 
+  mapContainerStyle,
+  restrictToBounds
 }: MapContainerProps) {
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
@@ -84,6 +101,9 @@ function ClientMap({
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
+
+  // Use the passed boundaries or default Singapore boundaries
+  const bounds = restrictToBounds || DEFAULT_SINGAPORE_BOUNDS;
 
   // Set error state if map fails to load
   useEffect(() => {
@@ -96,7 +116,52 @@ function ClientMap({
   const onLoad = useCallback((map: google.maps.Map) => {
     console.log('Map loaded successfully');
     setMap(map);
-  }, []);
+    
+    // Set map boundary restrictions
+    if (map && bounds) {
+      // Create boundary rectangle
+      const boundLimits = new google.maps.LatLngBounds(
+        new google.maps.LatLng(bounds.south, bounds.west),
+        new google.maps.LatLng(bounds.north, bounds.east)
+      );
+      
+      // Set initial view to be within boundaries
+      map.fitBounds(boundLimits);
+      
+      // Add boundary restriction listener
+      map.addListener('dragend', () => {
+        const center = map.getCenter();
+        if (!center) return;
+        
+        // Get current map center position
+        let lat = center.lat();
+        let lng = center.lng();
+        
+        // Check if out of bounds and correct
+        let changed = false;
+        if (lat > bounds.north) {
+          lat = bounds.north;
+          changed = true;
+        } else if (lat < bounds.south) {
+          lat = bounds.south;
+          changed = true;
+        }
+        
+        if (lng > bounds.east) {
+          lng = bounds.east;
+          changed = true;
+        } else if (lng < bounds.west) {
+          lng = bounds.west;
+          changed = true;
+        }
+        
+        // If position is out of bounds, move the map back within boundaries
+        if (changed) {
+          map.panTo(new google.maps.LatLng(lat, lng));
+        }
+      });
+    }
+  }, [bounds]);
 
   const onUnmount = useCallback(() => {
     console.log('Map unmounted');
@@ -146,7 +211,17 @@ function ClientMap({
       options={{
         streetViewControl: false,
         mapTypeControl: false,
-        fullscreenControl: false
+        fullscreenControl: false,
+        // Set map visual range restriction
+        restriction: {
+          latLngBounds: {
+            north: bounds.north,
+            south: bounds.south,
+            east: bounds.east,
+            west: bounds.west
+          },
+          strictBounds: true
+        }
       }}
     >
       {children}

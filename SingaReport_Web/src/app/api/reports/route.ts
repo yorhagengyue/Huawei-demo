@@ -128,7 +128,9 @@ export async function POST(request: NextRequest) {
       { 
         success: true,
         message: 'Report created successfully',
-        data: report
+        data: report,
+        id: report.id,
+        reportId: report.id
       },
       { status: 201 }
     );

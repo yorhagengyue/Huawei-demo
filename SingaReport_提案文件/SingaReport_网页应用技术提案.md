@@ -793,3 +793,258 @@ CREATE INDEX idx_ai_analysis_media_id ON ai_analysis(media_id);
    - 用户接受度测试
    - 生产环境部署
    - 监控与支持体系建立 
+
+# 地图显示问题分析与解决方案
+
+经过代码检查，我发现目前首页和地图页面存在以下问题，导致地图无法正常显示：
+
+## 问题分析
+
+### 1. 首页和地图页面没有集成实际地图组件
+- **首页代码**：目前使用了模拟加载（2秒），然后显示"地图预览暂不可用"的占位符
+- **地图页代码**：同样使用模拟加载，显示"Interactive Map Placeholder"的占位符
+
+### 2. 服务器端渲染兼容性问题
+- MapContainer组件虽然有`'use client'`标记和isBrowser检查，但可能存在SSR问题
+- Google Maps API需要在浏览器环境中加载和执行
+
+### 3. API调用问题
+- 401 Unauthorized错误表明身份验证有问题
+- 额外的HTML属性警告可能源自Next.js和React组件渲染差异
+
+## 解决方案
+
+### 1. 修改首页地图实现
+
+需要将首页中的占位符替换为实际的MapContainer组件：
+
+```jsx
+{/* 实时地图预览 */}
+<section className="py-12 bg-white">
+  <div className="container mx-auto px-4">
+    <div className="max-w-5xl mx-auto">
+      <h2 className="text-3xl font-bold text-center mb-10">实时热点地图</h2>
+      <div className="relative h-[400px] rounded-lg overflow-hidden border border-gray-200 shadow-md">
+        {isClient ? (
+          <MapContainer zoom={11}>
+            {/* 这里可以添加示例标记点 */}
+          </MapContainer>
+        ) : (
+          <div className="flex items-center justify-center bg-gray-100 h-full w-full">
+            <p className="text-gray-500">地图加载中...</p>
+          </div>
+        )}
+        <div className="absolute bottom-4 right-4">
+          <Link
+            href="/map"
+            className="bg-white text-primary px-4 py-2 rounded-md shadow-md hover:bg-gray-50 transition-colors text-sm font-medium flex items-center"
+          >
+            查看完整地图 <FiArrowRight className="ml-1" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+```
+
+### 2. 修改地图页面实现
+
+替换地图页中的占位符为实际的MapContainer组件：
+
+```jsx
+{/* 地图视图 */}
+<div className="lg:col-span-2 bg-white rounded-xl shadow-md overflow-hidden">
+  <div className="h-[600px] relative">
+    {isClient ? (
+      <MapContainer zoom={12}>
+        {filteredReports.map((report) => (
+          <MapMarker 
+            key={report.id}
+            position={{
+              lat: report.location.latitude,
+              lng: report.location.longitude
+            }}
+            onClick={() => handleMarkerClick(report)}
+          />
+        ))}
+      </MapContainer>
+    ) : (
+      <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mb-2"></div>
+          <p className="text-gray-500">地图加载中...</p>
+        </div>
+      </div>
+    )}
+  </div>
+</div>
+```
+
+### 3. 强化地图组件的客户端检查
+
+修改MapContainer.tsx中的客户端检查逻辑：
+
+```jsx
+'use client';
+
+import { useState, useCallback, useEffect } from 'react';
+import { 
+  GoogleMap, 
+  useJsApiLoader,
+  LoadScriptProps,
+  LoadScript
+} from '@react-google-maps/api';
+
+const containerStyle = {
+  width: '100%',
+  height: '100%'
+};
+
+// 新加坡中心坐标
+const defaultCenter = {
+  lat: 1.3521,
+  lng: 103.8198
+};
+
+// 地图API加载所需的库
+const libraries: LoadScriptProps['libraries'] = ['places'];
+
+interface MapContainerProps {
+  center?: google.maps.LatLngLiteral;
+  zoom?: number;
+  onClick?: (e: google.maps.MapMouseEvent) => void;
+  children?: React.ReactNode;
+}
+
+export default function MapContainer({ 
+  center = defaultCenter, 
+  zoom = 12, 
+  onClick, 
+  children 
+}: MapContainerProps) {
+  const [isBrowser, setIsBrowser] = useState(false);
+  
+  // 检查是否在浏览器环境
+  useEffect(() => {
+    setIsBrowser(true);
+  }, []);
+
+  // 如果不是浏览器环境，返回加载占位符
+  if (!isBrowser) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-100 rounded-lg">
+        <div className="text-gray-500">地图加载中...</div>
+      </div>
+    );
+  }
+  
+  return (
+    <ClientSideMapRenderer 
+      center={center}
+      zoom={zoom}
+      onClick={onClick}
+      children={children}
+    />
+  );
+}
+
+// 确保只在客户端渲染地图组件
+function ClientSideMapRenderer({ 
+  center, 
+  zoom, 
+  onClick, 
+  children 
+}: MapContainerProps) {
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    libraries
+  });
+
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+
+  const onLoad = useCallback((map: google.maps.Map) => {
+    setMap(map);
+  }, []);
+
+  const onUnmount = useCallback(() => {
+    setMap(null);
+  }, []);
+
+  // 如果加载出错，显示错误信息
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-100 rounded-lg">
+        <div className="text-red-500">地图加载失败，请刷新页面重试</div>
+      </div>
+    );
+  }
+
+  return isLoaded ? (
+    <GoogleMap
+      mapContainerStyle={containerStyle}
+      center={center}
+      zoom={zoom}
+      onClick={onClick}
+      onLoad={onLoad}
+      onUnmount={onUnmount}
+      options={{
+        streetViewControl: false,
+        mapTypeControl: false,
+        fullscreenControl: false
+      }}
+    >
+      {children}
+    </GoogleMap>
+  ) : (
+    <div className="flex items-center justify-center h-full bg-gray-100 rounded-lg">
+      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
+    </div>
+  );
+}
+```
+
+### 4. 解决API密钥问题
+
+检查环境变量中的API密钥是否正确，并确保该密钥有正确的域名权限：
+
+- 确认`.env`文件中的`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`有效
+- 在Google Cloud Console中检查API密钥的限制，确保允许localhost和您的部署域名
+
+### 5. 修复认证错误
+
+处理401 Unauthorized错误，这可能与用户认证有关：
+
+```jsx:Huawei-demo/SingaReport_提案文件/SingaReport_网页应用技术提案.md
+// 在AuthContext中添加错误处理和重试逻辑
+const verifyAuth = async () => {
+  try {
+    const response = await fetch('/api/auth/verify');
+    if (response.status === 401) {
+      // 处理未认证情况，但不影响地图加载
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+    const data = await response.json();
+    setUser(data.user);
+  } catch (error) {
+    console.error('Authentication verification error:', error);
+    // 即使认证失败，也不影响地图功能
+    setUser(null);
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+## 实施步骤
+
+1. 首先修改MapContainer组件，加强客户端检查逻辑
+2. 更新首页和地图页面，使用实际的地图组件替换占位符
+3. 添加isClient状态检查到所有地图相关组件
+4. 确认API密钥设置正确
+5. 最后解决认证相关问题
+
+这些修改应该能解决地图无法显示的问题，让我们开始实施。需要我帮助修改具体文件吗？ 
