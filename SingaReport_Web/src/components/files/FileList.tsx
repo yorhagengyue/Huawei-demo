@@ -79,6 +79,7 @@ interface FileItem {
     id: string;
     username: string;
   };
+  formattedDate?: string;
 }
 
 // Pagination data interface
@@ -98,6 +99,18 @@ interface FileListProps {
   onFileDelete?: (fileId: string) => void;
   className?: string;
   initialLimit?: number;
+}
+
+// 在文件顶部添加这个helper函数声明，解决循环引用问题
+function addMissingEffects(component: any) {
+  // 在组件渲染后添加以下的useEffect逻辑：
+  
+  // Load files on first render and when dependencies change
+  React.useEffect(() => {
+    component.loadFiles();
+  }, [component.loadFiles]);
+  
+  // 其他useEffect逻辑...
 }
 
 export default function FileList({
@@ -140,7 +153,58 @@ export default function FileList({
   // Router
   const router = useRouter();
   
-  // Load file list
+  // 处理API返回的文件列表，合并本地存储的演示文件
+  const processFileList = useCallback((apiFiles: FileItem[]) => {
+    if (typeof window === 'undefined') return apiFiles;
+    
+    // 获取本地存储的演示文件
+    let uploadedDemoFiles: any[] = [];
+    try {
+      const storedFiles = sessionStorage.getItem('uploadedDemoFiles');
+      if (storedFiles) {
+        uploadedDemoFiles = JSON.parse(storedFiles);
+      }
+    } catch (e) {
+      console.error('Error parsing demo files from sessionStorage:', e);
+    }
+    
+    if (uploadedDemoFiles.length === 0) return apiFiles;
+    
+    // 合并文件，避免重复
+    const existingIds = new Set(apiFiles.map(file => file.id));
+    const newFiles = [...apiFiles];
+    
+    for (const demoFile of uploadedDemoFiles) {
+      if (!existingIds.has(demoFile.id)) {
+        // 将演示文件转换为FileItem格式
+        newFiles.push({
+          ...demoFile,
+          user: demoFile.user || { id: 'demo-user', username: 'demouser' },
+          canEdit: true,
+          canDelete: true,
+          isDemo: true,
+          status: demoFile.status || 'active'
+        });
+        existingIds.add(demoFile.id);
+      }
+    }
+    
+    // 按创建时间排序文件
+    if (sorting.sortBy === 'createdAt') {
+      newFiles.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0);
+        const dateB = new Date(b.createdAt || 0);
+        return sorting.sortOrder === 'desc' 
+          ? dateB.getTime() - dateA.getTime() 
+          : dateA.getTime() - dateB.getTime();
+      });
+    }
+    
+    console.log(`Combined ${apiFiles.length} API files with ${uploadedDemoFiles.length} demo files. Total: ${newFiles.length}`);
+    return newFiles;
+  }, [sorting]);
+  
+  // Load files from API
   const loadFiles = useCallback(async () => {
     try {
       setLoading(true);
@@ -175,20 +239,74 @@ export default function FileList({
       
       // Parse response
       const data = await response.json();
-      setFiles(data.files);
+      
+      // 处理文件列表，合并演示文件
+      const processedFiles = processFileList(data.files);
+      
+      setFiles(processedFiles);
       setPagination(data.pagination);
       
     } catch (err) {
       console.error('Failed to load files:', err);
       setError(err instanceof Error ? err.message : 'An error occurred while loading file list');
+      
+      // 如果API请求失败，尝试从本地存储加载演示文件
+      if (typeof window !== 'undefined') {
+        try {
+          const storedFiles = sessionStorage.getItem('uploadedDemoFiles');
+          if (storedFiles) {
+            const demoFiles = JSON.parse(storedFiles);
+            if (demoFiles.length > 0) {
+              console.log('Loading demo files from session storage:', demoFiles.length);
+              setFiles(demoFiles.map((demoFile: any) => ({
+                ...demoFile,
+                user: demoFile.user || { id: 'demo-user', username: 'demouser' },
+                canEdit: true,
+                canDelete: true,
+                isDemo: true,
+                status: 'active'
+              })));
+            }
+          }
+        } catch (e) {
+          console.error('Error loading demo files from session storage:', e);
+        }
+      }
     } finally {
       setLoading(false);
     }
-  }, [filters, sorting, pagination.page, pagination.limit, reportId]);
+  }, [filters, sorting, pagination.page, pagination.limit, reportId, processFileList]);
   
-  // Load files on first render and when dependencies change
+  // 使用useEffect加载文件列表
   useEffect(() => {
     loadFiles();
+  }, [loadFiles]);
+  
+  // 添加对文件上传完成事件的监听
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Add event listener for file refresh
+    const handleFileRefresh = () => {
+      console.log('File refresh event received, reloading files...');
+      loadFiles();
+    };
+    
+    window.addEventListener('filemanager:refresh', handleFileRefresh);
+    
+    // Check for recent uploads in session storage
+    const lastUploadedFileId = sessionStorage.getItem('lastUploadedFileId');
+    if (lastUploadedFileId) {
+      console.log('Found recently uploaded file:', lastUploadedFileId);
+      // Clear the session storage to prevent repeated refreshes
+      sessionStorage.removeItem('lastUploadedFileId');
+      // Reload files
+      loadFiles();
+    }
+    
+    return () => {
+      window.removeEventListener('filemanager:refresh', handleFileRefresh);
+    };
   }, [loadFiles]);
   
   // Handle search
@@ -264,17 +382,39 @@ export default function FileList({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
   
-  // Format date
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  // 格式化日期函数
+  const formatDate = useCallback((dateString: string): string => {
+    if (!dateString) return '';
+    
+    try {
+      // 尝试解析ISO日期字符串
+      const date = new Date(dateString);
+      
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) {
+        return dateString; // 如果解析失败，直接返回原字符串
+      }
+      
+      // 确保年份是当前年份或之前的年份
+      const currentYear = new Date().getFullYear();
+      if (date.getFullYear() > currentYear) {
+        // 如果年份在未来，调整为当前年份
+        date.setFullYear(currentYear);
+      }
+      
+      // 格式化日期
+      return date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      console.error('Error formatting date:', e);
+      return dateString;
+    }
+  }, []);
   
   // Return different icons based on file type
   const getFileTypeIcon = (fileType: string) => {
@@ -295,6 +435,17 @@ export default function FileList({
         return <Badge variant="secondary">{status}</Badge>;
     }
   };
+  
+  // 获取文件日期显示
+  const getFileDate = useCallback((file: FileItem): string => {
+    // 优先使用文件中可能存在的已格式化日期
+    if ('formattedDate' in file && file.formattedDate) {
+      return file.formattedDate as string;
+    }
+    
+    // 其次使用createdAt字段并格式化
+    return formatDate(file.createdAt);
+  }, [formatDate]);
   
   return (
     <div className={`w-full ${className}`}>
@@ -459,7 +610,7 @@ export default function FileList({
                   </TableCell>
                   <TableCell>{formatFileSize(file.fileSize)}</TableCell>
                   <TableCell>{getScanStatusBadge(file.scanStatus)}</TableCell>
-                  <TableCell>{formatDate(file.createdAt)}</TableCell>
+                  <TableCell>{getFileDate(file)}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

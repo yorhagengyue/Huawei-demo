@@ -47,6 +47,16 @@ export default function FilesPage() {
   // Handle upload success
   const handleUploadSuccess = (fileId: string, fileData: any) => {
     console.log('File uploaded successfully:', fileId, fileData);
+    // 在页面存储一个状态标识新文件已上传
+    if (typeof window !== 'undefined') {
+      // 在sessionStorage中存储刚上传的文件ID
+      sessionStorage.setItem('lastUploadedFileId', fileId);
+      // 触发一个自定义事件，通知FileList组件刷新
+      const refreshEvent = new CustomEvent('filemanager:refresh', {
+        detail: { fileId, data: fileData }
+      });
+      window.dispatchEvent(refreshEvent);
+    }
     // Switch to "All Files" tab after successful upload
     setActiveTab('all');
   };
@@ -68,14 +78,36 @@ export default function FilesPage() {
   
   // Format date
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    if (!dateString) return '';
+    
+    try {
+      // 尝试解析ISO日期字符串
+      const date = new Date(dateString);
+      
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) {
+        return dateString; // 如果解析失败，直接返回原字符串
+      }
+      
+      // 确保年份是当前年份或之前的年份
+      const currentYear = new Date().getFullYear();
+      if (date.getFullYear() > currentYear) {
+        // 如果年份在未来，调整为当前年份
+        date.setFullYear(currentYear);
+      }
+      
+      // 格式化日期和时间
+      return date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      console.error('Error formatting date:', e);
+      return dateString;
+    }
   };
   
   return (

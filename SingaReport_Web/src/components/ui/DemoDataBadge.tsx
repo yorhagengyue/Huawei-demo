@@ -7,7 +7,7 @@
 'use client';
 
 import React from 'react';
-import { Tooltip } from '@/components/ui/tooltip';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { InfoIcon } from 'lucide-react';
 
 interface DemoDataBadgeProps {
@@ -45,23 +45,22 @@ export const DemoDataBadge: React.FC<DemoDataBadgeProps> = ({
   };
 
   return (
-    <Tooltip
-      content={
-        <div className="max-w-xs text-xs p-2">
-          {tooltipText}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div 
+          className={`
+            inline-flex items-center gap-1 bg-amber-100 text-amber-800 
+            rounded-full font-medium border border-amber-300
+            ${sizeClasses[size]} ${className}
+          `}
+        >
+          <InfoIcon className="h-3.5 w-3.5" />
+          <span>Demo Data</span>
         </div>
-      }
-    >
-      <div 
-        className={`
-          inline-flex items-center gap-1 bg-amber-100 text-amber-800 
-          rounded-full font-medium border border-amber-300
-          ${sizeClasses[size]} ${className}
-        `}
-      >
-        <InfoIcon className="h-3.5 w-3.5" />
-        <span>Demo Data</span>
-      </div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs text-xs p-2">
+        {tooltipText}
+      </TooltipContent>
     </Tooltip>
   );
 };

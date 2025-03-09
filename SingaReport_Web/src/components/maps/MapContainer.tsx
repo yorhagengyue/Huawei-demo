@@ -84,6 +84,12 @@ export default function MapContainer({
   );
 }
 
+// Explicitly type Google Maps objects to fix linter errors
+type GoogleMapType = google.maps.Map & {
+  fitBounds(bounds: google.maps.LatLngBounds): void;
+  getCenter(): google.maps.LatLng;
+};
+
 // Separate client-side component that loads the Google Maps API
 function ClientMap({ 
   center, 
@@ -99,7 +105,7 @@ function ClientMap({
     libraries
   });
 
-  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [map, setMap] = useState<GoogleMapType | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
 
   // Use the passed boundaries or default Singapore boundaries
@@ -115,10 +121,12 @@ function ClientMap({
 
   const onLoad = useCallback((map: google.maps.Map) => {
     console.log('Map loaded successfully');
-    setMap(map);
+    // Cast to our augmented type
+    const typedMap = map as GoogleMapType;
+    setMap(typedMap);
     
     // Set map boundary restrictions
-    if (map && bounds) {
+    if (typedMap && bounds) {
       // Create boundary rectangle
       const boundLimits = new google.maps.LatLngBounds(
         new google.maps.LatLng(bounds.south, bounds.west),
@@ -126,11 +134,11 @@ function ClientMap({
       );
       
       // Set initial view to be within boundaries
-      map.fitBounds(boundLimits);
+      typedMap.fitBounds(boundLimits);
       
       // Add boundary restriction listener
-      map.addListener('dragend', () => {
-        const center = map.getCenter();
+      typedMap.addListener('dragend', () => {
+        const center = typedMap.getCenter();
         if (!center) return;
         
         // Get current map center position
@@ -157,11 +165,22 @@ function ClientMap({
         
         // If position is out of bounds, move the map back within boundaries
         if (changed) {
-          map.panTo(new google.maps.LatLng(lat, lng));
+          typedMap.panTo(new google.maps.LatLng(lat, lng));
         }
       });
     }
   }, [bounds]);
+
+  // Effect to handle center prop changes and animate the transition
+  useEffect(() => {
+    if (map && center) {
+      // Use smooth animation to pan to the new center
+      map.panTo(new google.maps.LatLng(center.lat, center.lng));
+      
+      // Log the center change
+      console.log('Map center updated to:', center);
+    }
+  }, [map, center]);
 
   const onUnmount = useCallback(() => {
     console.log('Map unmounted');

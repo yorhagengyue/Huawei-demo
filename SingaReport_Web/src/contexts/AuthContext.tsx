@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { parseJwt } from '@/lib/utils/jwt-parser';
+import { parseJwt } from '@/lib/auth/jwt-utils';
 import { User } from '@/types/user';
 
 type AuthContextType = {
@@ -43,6 +43,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // Use useRef to track if authentication has been checked
   const hasCheckedAuth = useRef(false);
@@ -87,108 +88,95 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     document.dispatchEvent(event);
   };
 
-  // Function to check if user is authenticated
+  // Authentication check function
   const checkAuth = useCallback(async (): Promise<boolean> => {
-    // If not in client environment, return false
+    // Skip auth check on server-side
     if (typeof window === 'undefined' || !isClient) {
       return false;
     }
     
-    // If check is already in progress, return current user state
+    const now = Date.now();
+    
+    // Prevent multiple simultaneous checks
     if (authCheckInProgress.current) {
       return !!user;
     }
     
-    // Check last verification time, if too recent, skip
-    const now = Date.now();
-    if (now - lastAuthCheck.current < 1000 && hasCheckedAuth.current) {
-      return !!user;
+    // Only check once every second at most
+    if (now - lastAuthCheck.current < 1000 && user) {
+      return true;
     }
     
-    // Set state to indicate check is in progress
     authCheckInProgress.current = true;
     setIsLoading(true);
-
+    lastAuthCheck.current = now;
+    
     try {
-      // Get token from localStorage
+      // Check for token in localStorage
       const token = localStorage.getItem('auth_token');
       
-      // If no token in localStorage, try to get from cookies (if cookies are accessible)
-      let effectiveToken = token;
-      if (!effectiveToken) {
-        try {
-          const cookies = document.cookie.split(';');
-          const authCookie = cookies.find(cookie => cookie.trim().startsWith('auth_token='));
-          if (authCookie) {
-            effectiveToken = authCookie.split('=')[1];
-            console.log('Token found in cookies');
-          }
-        } catch (e) {
-          console.warn('Failed to get token from cookies:', e);
-        }
-      }
-      
-      // If no token found, return unauthenticated
-      if (!effectiveToken) {
-        console.log('Authentication token not found');
+      // If no token, user is not authenticated
+      if (!token) {
         setUser(null);
+        setIsAuthenticated(false);
+        hasCheckedAuth.current = true;
         return false;
       }
       
-      // Prepare request headers
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      };
-      
-      // Add token to Authorization header if available
-      if (effectiveToken) {
-        headers['Authorization'] = `Bearer ${effectiveToken}`;
+      // Try to parse the token to check validity
+      try {
+        const parsedToken = parseJwt(token);
+        if (parsedToken && parsedToken.exp) {
+          const now = Math.floor(Date.now() / 1000);
+          if (parsedToken.exp < now) {
+            setUser(null);
+            setIsAuthenticated(false);
+            localStorage.removeItem('auth_token');
+            return false;
+          }
+        }
+      } catch (parseError) {
+        console.error('Error parsing token:', parseError);
       }
       
-      // Call verification API
-      console.log('Sending verification request...');
+      // Verify token with server
       const response = await fetch('/api/auth/verify', {
         method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
         credentials: 'include',
-        // Prevent caching
-        cache: 'no-store',
-        headers
       });
-
-      const data = await response.json();
-      console.log('Verification response:', response.status, data);
-
-      // Update last check time
-      lastAuthCheck.current = Date.now();
-      hasCheckedAuth.current = true;
-
-      if (response.ok && data.user) {
-        // If response includes token, update localStorage
+      
+      // If verification succeeded
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update user data and authentication state
+        setUser(data.user);
+        setIsAuthenticated(true);
+        setAuthError(null);
+        
+        // Update localStorage with latest token if provided
         if (data.token) {
-          console.log('Updating token from verification response');
           localStorage.setItem('auth_token', data.token);
         }
         
-        setUser(data.user);
-        setAuthError(null);
+        hasCheckedAuth.current = true;
         return true;
       } else {
-        console.log('Verification failed, clearing user state');
+        // If server rejected token, clear auth state
         setUser(null);
-        // If verification fails, clear local token
+        setIsAuthenticated(false);
         localStorage.removeItem('auth_token');
+        hasCheckedAuth.current = true;
         return false;
       }
     } catch (error) {
-      console.error('Authentication check failed:', error);
-      setUser(null);
-      setAuthError('Authentication check failed');
-      // Clear local token on error
-      localStorage.removeItem('auth_token');
-      return false;
+      console.error('Error checking authentication:', error);
+      setAuthError(null);
+      return !!user;
     } finally {
       setIsLoading(false);
       authCheckInProgress.current = false;
@@ -207,9 +195,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setAuthError(null);
 
     try {
-      // Add debug log
-      console.log('Attempting login with email:', email);
-      
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -220,64 +205,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       const data = await response.json();
-      
-      // Detailed debug logs
-      console.log('Login response status:', response.status, response.ok);
-      console.log('Login response data:', JSON.stringify(data));
 
       if (!response.ok) {
-        console.error('Login request failed:', data.error || 'Unknown error');
-        throw new Error(data.error || 'Login failed');
+        throw new Error(data.message || data.error || 'Authentication failed. Please check your credentials.');
       }
 
       // Extract token from response
       if (data.token) {
-        console.log('Token found in response body');
         localStorage.setItem('auth_token', data.token);
-      } else {
-        console.log('No token in response, trying to get from cookies');
-        // Try to get token from cookies (if our API sets non-HttpOnly cookies)
-        const cookies = document.cookie.split(';');
-        const authCookie = cookies.find(cookie => cookie.trim().startsWith('auth_token='));
-        
-        if (authCookie) {
-          const token = authCookie.split('=')[1];
-          localStorage.setItem('auth_token', token);
-          console.log('Token retrieved from cookies');
-        } else {
-          console.warn('Login successful but could not retrieve token, possibly using HttpOnly cookies');
-        }
       }
 
-      // Set user data immediately to prevent having to wait for checkAuth
+      // Set user data immediately
       if (data.user) {
-        console.log('Setting user data:', data.user);
         setUser(data.user);
+        setIsAuthenticated(true);
       }
 
-      // Verify authentication status after login
-      console.log('Checking authentication after login');
-      await checkAuth();
-      
       // Broadcast login event
       broadcastAuthStateChange('login');
       
-      // Small delay to ensure cookie and state updates
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Check again to ensure authentication state consistency
-      const isAuthenticated = await checkAuth();
-      console.log('Final authentication status:', isAuthenticated);
-      
-      if (!isAuthenticated) {
-        console.error('Login appeared successful but auth check failed');
-        throw new Error('Authentication verification failed. Please try again.');
-      }
-      
-      return isAuthenticated;
+      return true;
     } catch (error: any) {
       console.error('Login failed:', error);
-      setAuthError(error.message || 'Login failed');
+      setAuthError(error.message || 'Authentication failed. Please try again.');
+      setIsAuthenticated(false);
+      setUser(null);
       return false;
     } finally {
       setIsLoading(false);
@@ -329,9 +281,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Register functionality
   const register = async (userData: RegisterData): Promise<boolean> => {
-    // 如果不在客户端，直接返回
+    // If not on client side, return immediately
     if (typeof window === 'undefined' || !isClient) {
-      console.error('无法在服务器端执行注册');
+      console.error('Cannot perform registration on server side');
       return false;
     }
     
@@ -353,7 +305,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw new Error(data.error || 'Registration failed');
       }
 
-      // 如果注册后自动登录,设置令牌和用户数据
+      // If auto-login after registration, set token and user data
       if (data.token) {
         localStorage.setItem('auth_token', data.token);
       }
@@ -413,7 +365,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const contextValue: AuthContextType = {
     user,
     isLoading,
-    isAuthenticated: !!user,
+    isAuthenticated,
     authError,
     login,
     logout,

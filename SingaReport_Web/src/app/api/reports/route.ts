@@ -1,143 +1,183 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db/prisma';
-import { verifyToken, extractTokenFromHeader } from '@/lib/auth/jwt-utils';
+import { PrismaClient } from '@prisma/client';
+import { getUserFromRequest } from '@/lib/auth/jwt-utils';
 
-// Get report list
+// Create a new Prisma client instance
+const prisma = new PrismaClient();
+
+// Data source constants
+const DATA_SOURCE = {
+  DATABASE: 'database',
+  ERROR: 'error'
+};
+
+// Fetch reports from database using Prisma
+async function fetchReportsFromDatabase(category?: string, status?: string) {
+  const filters: any = {};
+  
+  if (category) {
+    filters.category = category;
+  }
+  
+  if (status) {
+    filters.status = status;
+  }
+  
+  try {
+    console.log('Fetching from database with filters:', filters);
+    
+    // Query database with filters
+    const reports = await prisma.report.findMany({
+      where: filters,
+      include: {
+        media: true,
+        // 已移除 user 关系，因为该关系不再存在
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+    
+    console.log(`Found ${reports.length} reports in database`);
+    return reports;
+  } catch (error) {
+    console.error('Error fetching from database:', error);
+    throw error;
+  }
+}
+
+// Save report to database using Prisma
+async function saveReportToDatabase(reportData: any, userId: string = 'anonymous') {
+  try {
+    console.log('Saving report to database:', { title: reportData.title, userId });
+    
+    // 构建与数据库模型匹配的数据结构
+    // 注意：Report 模型中只有 userId 字段，没有直接链接到 User 模型
+    const data = {
+      title: reportData.title || '',
+      description: reportData.description || '',
+      category: reportData.category || 'other',
+      status: 'open', // Default status for new reports
+      location: reportData.location || '',
+      // 确保数值类型正确
+      latitude: reportData.latitude ? parseFloat(String(reportData.latitude)) : null,
+      longitude: reportData.longitude ? parseFloat(String(reportData.longitude)) : null, 
+      severity: reportData.severity || 'medium', // 现在我们已确认 severity 字段存在
+      userId: userId || 'anonymous',
+      isDemo: false
+    };
+    
+    console.log('Prepared data for Prisma:', data);
+    
+    // Create report record in database
+    const savedReport = await prisma.report.create({
+      data,
+      include: {
+        media: true // 只包含确实存在的关系
+      }
+    });
+    
+    console.log('Report saved to database with ID:', savedReport.id);
+    return savedReport;
+  } catch (error) {
+    console.error('Error saving report to database:', error);
+    throw error;
+  }
+}
+
+// GET reports API endpoint
 export async function GET(request: NextRequest) {
   try {
     // Get query parameters
     const { searchParams } = new URL(request.url);
-    const category = searchParams.get('category');
-    const status = searchParams.get('status');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const page = parseInt(searchParams.get('page') || '1');
-    const skip = (page - 1) * limit;
-
-    // Build query conditions
-    const where: any = {};
-    if (category) where.category = category;
-    if (status) where.status = status;
-
-    // Get total number of reports
-    const total = await prisma.report.count({ where });
-
-    // Query report list
-    const reports = await prisma.report.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            name: true,
-          }
-        },
-        media: true
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      skip,
-      take: limit
+    const categoryParam = searchParams.get('category');
+    const statusParam = searchParams.get('status');
+    
+    // Convert null to undefined for our function
+    const category = categoryParam ?? undefined;
+    const status = statusParam ?? undefined;
+    
+    // Log request info
+    console.log('GET /api/reports', { 
+      params: { category, status }
     });
-
-    // Return results
-    return NextResponse.json({
-      success: true,
-      data: {
-        reports,
-        pagination: {
-          total,
-          page,
-          limit,
-          pages: Math.ceil(total / limit)
-        }
-      }
-    });
+    
+    try {
+      // Fetch reports from database
+      const reports = await fetchReportsFromDatabase(category, status);
+      
+      // 结构化响应，确保与前端期望的格式匹配
+      return NextResponse.json({
+        success: true,
+        reports: reports,
+        source: DATA_SOURCE.DATABASE,
+        timestamp: new Date().toISOString()
+      });
+    } catch (dbError) {
+      console.error('Database error when fetching reports:', dbError);
+      
+      // Return error response
+      return NextResponse.json(
+        { error: 'Database error', message: (dbError as Error).message, source: DATA_SOURCE.ERROR },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error('Error getting report list:', error);
+    console.error('Error in GET /api/reports:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to process request', message: (error as Error).message, source: DATA_SOURCE.ERROR },
       { status: 500 }
     );
   }
 }
 
-// Create new report
+// POST report API endpoint
 export async function POST(request: NextRequest) {
   try {
-    // Verify user identity
-    const token = request.cookies.get('auth_token')?.value 
-                || extractTokenFromHeader(request.headers.get('Authorization'));
+    const data = await request.json();
+    console.log('POST /api/reports', { 
+      data: { title: data.title, category: data.category }
+    });
     
-    if (!token) {
+    // Check required fields
+    const requiredFields = ['title', 'category', 'description', 'location'];
+    const missingFields = requiredFields.filter(field => !data[field]);
+    
+    if (missingFields.length > 0) {
       return NextResponse.json(
-        { error: 'Unauthorized access' },
-        { status: 401 }
-      );
-    }
-
-    const user = await verifyToken(token);
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid or expired token' },
-        { status: 401 }
-      );
-    }
-
-    // Parse request data
-    const body = await request.json();
-    const { title, description, category, location, latitude, longitude, mediaUrls, isDemo } = body;
-
-    // Basic validation
-    if (!title || !description || !category) {
-      return NextResponse.json(
-        { error: 'Title, description and category are required' },
+        { error: 'Missing required fields', fields: missingFields },
         { status: 400 }
       );
     }
-
-    // Create report
-    const report = await prisma.report.create({
-      data: {
-        title,
-        description,
-        category,
-        location,
-        latitude: latitude ? parseFloat(latitude) : null,
-        longitude: longitude ? parseFloat(longitude) : null,
-        userId: user.id,
-        isDemo: isDemo === 'true' || isDemo === true,
-        // If there are media files, create associations
-        ...(mediaUrls && mediaUrls.length > 0 && {
-          media: {
-            create: mediaUrls.map((url: string) => ({
-              type: url.toLowerCase().endsWith('.mp4') ? 'video' : 'image',
-              url,
-              isDemo: isDemo === 'true' || isDemo === true
-            }))
-          }
-        })
-      },
-      include: {
-        media: true
-      }
-    });
-
-    return NextResponse.json(
-      { 
+    
+    try {
+      // Get authenticated user (if any)
+      const user = await getUserFromRequest(request);
+      const userId = user?.id || 'anonymous';
+      
+      // Save report to database
+      const savedReport = await saveReportToDatabase(data, userId);
+      
+      // Return success response
+      return NextResponse.json({
         success: true,
-        message: 'Report created successfully',
-        data: report,
-        id: report.id,
-        reportId: report.id
-      },
-      { status: 201 }
-    );
+        message: 'Report submitted successfully',
+        report: savedReport,
+        source: DATA_SOURCE.DATABASE
+      });
+    } catch (dbError) {
+      console.error('Database error when saving report:', dbError);
+      
+      // Return error response
+      return NextResponse.json(
+        { error: 'Failed to save report', message: (dbError as Error).message, source: DATA_SOURCE.ERROR },
+        { status: 500 }
+      );
+    }
   } catch (error) {
-    console.error('Error creating report:', error);
+    console.error('Error in POST /api/reports:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to process request', message: (error as Error).message, source: DATA_SOURCE.ERROR },
       { status: 500 }
     );
   }

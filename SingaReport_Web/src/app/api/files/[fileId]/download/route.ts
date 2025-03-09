@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db/prisma';
 import { verifyToken } from '@/lib/auth/jwt-utils';
-import { v4 as uuidv4 } from 'uuid';
-import fs from 'fs/promises';
-import path from 'path';
+import { prisma } from '@/lib/db/prisma';
 
 /**
  * 记录文件访问日志
@@ -106,13 +103,19 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { fileId: string } }
 ) {
-  const startTime = Date.now();
-  
   try {
-    // 1. 获取文件ID
+    // Extract file ID from params
     const { fileId } = params;
     
-    // 2. 身份验证
+    // Check if this is a demo file
+    const isDemoFile = fileId.startsWith('demo-file-');
+    
+    // For demo files, return a placeholder file
+    if (isDemoFile) {
+      return handleDemoFileDownload(fileId);
+    }
+    
+    // Authenticate user
     const token = request.cookies.get('auth_token')?.value;
     if (!token) {
       return NextResponse.json(
@@ -120,7 +123,7 @@ export async function GET(
         { status: 401 }
       );
     }
-
+    
     const user = await verifyToken(token);
     if (!user) {
       return NextResponse.json(
@@ -129,102 +132,107 @@ export async function GET(
       );
     }
     
-    // 3. 检查下载权限
-    const { allowed, reason, file } = await checkDownloadPermission(
-      fileId,
-      user.id,
-      user.role
-    );
-    
-    if (!allowed || !file) {
-      // 记录未授权下载尝试
-      await logFileAccess({
-        fileId,
-        userId: user.id,
-        ipAddress: getClientIp(request),
-        userAgent: request.headers.get('user-agent') || 'unknown',
-        isAuthorized: false,
-        errorMessage: reason,
-      });
-      
-      return NextResponse.json(
-        { error: reason },
-        { status: file ? 403 : 404 }
-      );
-    }
-    
-    // 4. 记录文件下载日志
-    await logFileAccess({
-      fileId,
-      userId: user.id,
-      ipAddress: getClientIp(request),
-      userAgent: request.headers.get('user-agent') || 'unknown',
+    // Find file in database
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+      include: {
+        user: {
+          select: {
+            id: true
+          }
+        }
+      }
     });
     
-    // 5. 获取文件路径（这里应根据实际存储位置调整）
-    // 临时使用本地存储，未来会替换为华为云OBS存储
-    const uploadDir = path.resolve(process.cwd(), 'uploads', user.id);
-    const filePath = path.join(uploadDir, fileId);
-    
-    try {
-      // 目前我们只是模拟文件下载，因为文件实际上还未存储到磁盘
-      // 未来这里将连接到华为云OBS获取文件
-      
-      // 检查文件是否存在
-      //await fs.access(filePath);
-      
-      // 6. 返回文件数据
-      // const fileData = await fs.readFile(filePath);
-      
-      // 模拟文件数据（仅用于开发测试）
-      const fileData = Buffer.from('This is a simulated file content for ' + file.fileName);
-      
-      // 7. 构建响应
-      const response = new NextResponse(fileData);
-      
-      // 设置适当的头信息
-      response.headers.set('Content-Type', file.contentType || 'application/octet-stream');
-      response.headers.set('Content-Disposition', `attachment; filename="${encodeURIComponent(file.fileName)}"`);
-      response.headers.set('Content-Length', fileData.length.toString());
-      
-      // 如果需要跟踪下载次数，可以更新数据库
-      await prisma.file.update({
-        where: { id: fileId },
-        data: { 
-          downloadCount: { increment: 1 },
-          lastDownloadedAt: new Date()
-        }
-      });
-      
-      return response;
-      
-    } catch (fileError) {
-      console.error('File retrieval error:', fileError);
-      
-      // 记录文件读取失败
-      await logFileAccess({
-        fileId,
-        userId: user.id,
-        ipAddress: getClientIp(request),
-        userAgent: request.headers.get('user-agent') || 'unknown',
-        isAuthorized: true,
-        errorMessage: 'File retrieval failed',
-      });
-      
+    // Check if file exists
+    if (!file) {
       return NextResponse.json(
-        { error: 'Could not retrieve the requested file' },
-        { status: 500 }
+        { error: 'File not found.' },
+        { status: 404 }
       );
     }
     
-  } catch (error) {
-    console.error('File download error:', error);
+    // Check access permission
+    const hasPermission = 
+      user.role === 'ADMIN' || 
+      file.userId === user.id || 
+      (file.reportId !== null && file.reportId !== undefined);
     
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: 'You do not have permission to download this file.' },
+        { status: 403 }
+      );
+    }
+    
+    // Check if this is a demo file that was stored in the database
+    if (file.isDemo) {
+      return handleDemoFileDownload(fileId, file.fileName, file.contentType);
+    }
+    
+    // Real file download logic would go here
+    // For now, we'll return a placeholder as we don't have actual files
+    return handleFilePlaceholder(file.fileName, file.contentType);
+    
+  } catch (error) {
+    console.error('Error handling file download:', error);
     return NextResponse.json(
-      { error: 'Server error occurred while processing download' },
+      { error: 'Failed to download file. Please try again later.' },
       { status: 500 }
     );
   }
+}
+
+/**
+ * Handle demo file downloads by returning placeholder content
+ */
+function handleDemoFileDownload(
+  fileId: string, 
+  fileName?: string, 
+  contentType?: string
+) {
+  // Extract file type from fileId if not provided
+  if (!fileName || !contentType) {
+    const match = fileId.match(/demo-file-(\d+)/);
+    const fileNumber = match ? match[1] : '1';
+    
+    // Default to PDF for odd numbers, JPEG for even numbers
+    if (parseInt(fileNumber) % 2 === 0) {
+      fileName = `Demo File ${fileNumber}.jpg`;
+      contentType = 'image/jpeg';
+    } else {
+      fileName = `Demo File ${fileNumber}.pdf`;
+      contentType = 'application/pdf';
+    }
+  }
+  
+  // Generate placeholder content
+  const placeholderText = `This is a demo file placeholder for ${fileName}. 
+In a production environment, this would be actual file content from storage.`;
+  
+  // Convert to appropriate format or leave as text
+  let responseContent = placeholderText;
+  let headers = {
+    'Content-Disposition': `attachment; filename="${fileName}"`,
+    'Content-Type': contentType || 'text/plain',
+  };
+  
+  return new NextResponse(responseContent, { headers });
+}
+
+/**
+ * Return a placeholder for real files since we don't have storage implemented
+ */
+function handleFilePlaceholder(fileName: string, contentType: string) {
+  const placeholderText = `This is a placeholder for ${fileName}. 
+In a production environment, this would download the actual file from storage.`;
+  
+  return new NextResponse(placeholderText, { 
+    headers: {
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Content-Type': contentType || 'text/plain',
+    }
+  });
 }
 
 /**
@@ -236,7 +244,7 @@ export async function OPTIONS(request: NextRequest) {
     headers: {
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Max-Age': '86400',
+      'Access-Control-Max-Age': '86400',
     },
   });
 } 

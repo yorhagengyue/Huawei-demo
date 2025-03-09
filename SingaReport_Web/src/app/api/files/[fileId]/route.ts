@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db/prisma';
 import { verifyToken } from '@/lib/auth/jwt-utils';
-import { v4 as uuidv4 } from 'uuid';
+import { prisma } from '@/lib/db/prisma';
 
 /**
  * 记录文件访问日志
@@ -65,149 +64,79 @@ export async function GET(
   { params }: { params: { fileId: string } }
 ) {
   try {
-    // Get the file ID from params
-    const fileId = params.fileId;
-    if (!fileId) {
-      return NextResponse.json({ error: 'File ID is required' }, { status: 400 });
-    }
-
-    // Extract user information from token
-    const token = request.cookies.get('auth_token')?.value 
-                || extractTokenFromHeader(request.headers.get('Authorization'));
+    // Extract file ID from params
+    const { fileId } = params;
     
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized access' }, { status: 401 });
+    // Check if this is a demo file
+    const isDemoFile = fileId.startsWith('demo-file-');
+    
+    // For demo files, return placeholder metadata
+    if (isDemoFile) {
+      return handleDemoFileView(fileId);
     }
-
+    
+    // Authenticate user
+    const token = request.cookies.get('auth_token')?.value;
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Authentication required to view files.' },
+        { status: 401 }
+      );
+    }
+    
     const user = await verifyToken(token);
     if (!user) {
-      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Your session has expired. Please log in again.' },
+        { status: 401 }
+      );
     }
     
-    // Get client IP and user agent
-    const ipAddress = getClientIp(request);
-    const userAgent = request.headers.get('user-agent') || 'unknown';
-    
-    // Find the file
+    // Find file in database
     const file = await prisma.file.findUnique({
       where: { id: fileId },
-      select: {
-        id: true,
-        fileName: true,
-        fileSize: true,
-        fileType: true,
-        contentType: true,
-        createdAt: true,
-        updatedAt: true,
-        scanStatus: true,
-        downloadCount: true,
-        status: true,
-        tags: true,
-        reportId: true,
-        lastDownloadedAt: true,
-        metadata: true,
-        userId: true,
+      include: {
         user: {
           select: {
             id: true,
             username: true,
-            name: true,
-            role: true
-          }
-        },
-        report: {
-          select: {
-            id: true,
-            title: true,
-            category: true
+            email: true
           }
         }
       }
     });
     
-    // 单独查询isDemo字段
-    const isDemoResult = await prisma.file.findUnique({
-      where: { id: fileId },
-      select: { isDemo: true }
-    });
-
+    // Check if file exists
     if (!file) {
-      // 记录访问失败日志
-      await logFileAccess({
-        fileId,
-        userId: user.id,
-        ipAddress: getClientIp(request),
-        userAgent: request.headers.get('user-agent') || 'unknown',
-        isAuthorized: false,
-        errorMessage: 'File not found',
-      });
-      
       return NextResponse.json(
-        { error: 'File not found' },
+        { error: 'File not found.' },
         { status: 404 }
       );
     }
     
-    // 4. 检查文件扫描状态
-    if (file.scanStatus === 'infected') {
-      // 记录访问被拒绝日志
-      await logFileAccess({
-        fileId,
-        userId: user.id,
-        ipAddress: getClientIp(request),
-        userAgent: request.headers.get('user-agent') || 'unknown',
-        isAuthorized: false,
-        errorMessage: 'File is infected with malware',
-      });
-      
+    // Check access permission
+    const hasPermission = 
+      user.role === 'ADMIN' || 
+      file.userId === user.id || 
+      (file.reportId !== null && file.reportId !== undefined);
+    
+    if (!hasPermission) {
       return NextResponse.json(
-        { error: 'File is infected with malware and cannot be accessed' },
+        { error: 'You do not have permission to view this file.' },
         { status: 403 }
       );
     }
     
-    // 5. 检查访问权限 (文件所有者或管理员可访问)
-    const isOwner = file.userId === user.id;
-    const isAdmin = user.role === 'ADMIN';
-    
-    if (!isOwner && !isAdmin) {
-      // 对于非所有者，检查报告共享设置
-      if (file.reportId) {
-        // TODO: 实现报告共享检查逻辑
-        // const hasAccess = await checkReportAccess(file.reportId, user.id);
-        // if (!hasAccess) {
-        //   await logFileAccess({ ... });
-        //   return NextResponse.json({ error: 'Not authorized to access this file' }, { status: 403 });
-        // }
-      } else {
-        // 记录未授权访问日志
-        await logFileAccess({
-          fileId,
-          userId: user.id,
-          ipAddress: getClientIp(request),
-          userAgent: request.headers.get('user-agent') || 'unknown',
-          isAuthorized: false,
-          errorMessage: 'Not authorized to access this file',
-        });
-        
-        return NextResponse.json(
-          { error: 'Not authorized to access this file' },
-          { status: 403 }
-        );
-      }
+    // Check if this is a demo file that was stored in the database
+    if (file.isDemo) {
+      return handleDemoFileView(fileId, file);
     }
-
-    // 6. 记录访问日志
-    await logFileAccess({
-      fileId,
-      userId: user.id,
-      ipAddress: getClientIp(request),
-      userAgent: request.headers.get('user-agent') || 'unknown',
-      accessType: 'METADATA', // 仅获取元数据
-    });
     
-    // Prepare file details for return
-    const fileDetails = {
+    // Get download URL
+    const downloadUrl = `/api/files/${file.id}/download`;
+    
+    // Return file metadata
+    const fileInfo = {
       id: file.id,
       fileName: file.fileName,
       fileSize: file.fileSize,
@@ -215,33 +144,108 @@ export async function GET(
       contentType: file.contentType,
       createdAt: file.createdAt,
       updatedAt: file.updatedAt,
-      scanStatus: file.scanStatus,
       downloadCount: file.downloadCount,
-      status: file.status,
-      downloadUrl: `/api/files/${file.id}/download`,
-      viewUrl: `/api/files/${file.id}/view`,
-      lastDownloadedAt: file.lastDownloadedAt,
-      reportId: file.reportId,
-      canDelete: userCanDelete,
-      canEdit: userCanEdit,
+      scanStatus: file.scanStatus,
       tags: file.tags,
-      metadata: file.metadata,
-      isDemo: isDemoResult?.isDemo || false,
       user: {
         id: file.user.id,
         username: file.user.username,
-      }
+      },
+      downloadUrl,
+      previewAvailable: isPreviewAvailable(file.fileType),
+      isDemo: file.isDemo || false,
     };
     
-    return NextResponse.json(fileDetails);
-    
+    return NextResponse.json(fileInfo);
   } catch (error) {
-    console.error('File access error:', error);
+    console.error('Error handling file view:', error);
     return NextResponse.json(
-      { error: 'Server error occurred while accessing file' },
+      { error: 'Failed to retrieve file information. Please try again later.' },
       { status: 500 }
     );
   }
+}
+
+/**
+ * Handle demo file view by returning placeholder metadata
+ */
+function handleDemoFileView(fileId: string, existingFile?: any) {
+  // If we have existing file data, use it
+  if (existingFile) {
+    const downloadUrl = `/api/files/${existingFile.id}/download`;
+    return NextResponse.json({
+      ...existingFile,
+      downloadUrl,
+      previewAvailable: isPreviewAvailable(existingFile.fileType),
+      isDemo: true,
+    });
+  }
+  
+  // Generate placeholder metadata for demo file
+  const match = fileId.match(/demo-file-(\d+)/);
+  const fileNumber = match ? match[1] : '1';
+  
+  // Default to PDF for odd numbers, JPEG for even numbers
+  let fileName, fileType, contentType, fileSize;
+  if (parseInt(fileNumber) % 2 === 0) {
+    fileName = `Demo File ${fileNumber}.jpg`;
+    fileType = 'image/jpeg';
+    contentType = 'image/jpeg';
+    fileSize = 1024 * 1024 * (parseInt(fileNumber) % 5 + 1); // 1-5 MB
+  } else {
+    fileName = `Demo File ${fileNumber}.pdf`;
+    fileType = 'application/pdf';
+    contentType = 'application/pdf';
+    fileSize = 1024 * 1024 * (parseInt(fileNumber) % 10 + 1); // 1-10 MB
+  }
+  
+  // Current date adjusted by file number
+  const now = new Date();
+  const createdAt = new Date(now);
+  createdAt.setDate(now.getDate() - parseInt(fileNumber) % 30);
+  
+  const fileInfo = {
+    id: fileId,
+    fileName,
+    fileSize,
+    fileType,
+    contentType,
+    createdAt: createdAt.toISOString(),
+    updatedAt: now.toISOString(),
+    downloadCount: parseInt(fileNumber) % 20,
+    scanStatus: 'clean',
+    tags: ['demo', 'sample'],
+    user: {
+      id: 'demo-user',
+      username: 'demouser',
+    },
+    downloadUrl: `/api/files/${fileId}/download`,
+    previewAvailable: isPreviewAvailable(fileType),
+    isDemo: true,
+  };
+  
+  return NextResponse.json(fileInfo);
+}
+
+/**
+ * Determine if file type can be previewed in browser
+ */
+function isPreviewAvailable(fileType: string): boolean {
+  const previewableTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
+    'application/pdf',
+    'text/plain',
+    'text/html',
+    'text/css',
+    'text/javascript',
+    'application/json',
+  ];
+  
+  return previewableTypes.includes(fileType);
 }
 
 /**
@@ -253,7 +257,7 @@ export async function OPTIONS(request: NextRequest) {
     headers: {
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Max-Age': '86400',
+      'Access-Control-Max-Age': '86400',
     },
   });
 } 

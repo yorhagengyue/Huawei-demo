@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 
 interface PageTransitionProps {
   children: ReactNode;
@@ -16,6 +16,11 @@ export default function PageTransition({
   shouldAnimate = true
 }: PageTransitionProps) {
   const pathname = usePathname();
+  
+  // 添加页面跳转时滚动到顶部的功能
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
   
   // 如果不需要动画，直接返回内容
   if (!shouldAnimate) {

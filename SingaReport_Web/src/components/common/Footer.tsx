@@ -40,7 +40,7 @@ export default function Footer() {
             <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/report/new" className="text-gray-400 hover:text-white">
+                <Link href="/report/create" className="text-gray-400 hover:text-white">
                   Report an Issue
                 </Link>
               </li>

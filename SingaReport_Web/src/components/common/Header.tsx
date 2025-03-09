@@ -127,7 +127,7 @@ export default function Header() {
             <Link href="/map" className="text-gray-600 hover:text-primary">
               Map Overview
             </Link>
-            <Link href="/report/new" className="text-gray-600 hover:text-primary">
+            <Link href="/report/create" className="text-gray-600 hover:text-primary">
               Report Issue
             </Link>
             {user && (
@@ -270,7 +270,7 @@ export default function Header() {
                 Map Overview
               </Link>
               <Link 
-                href="/report/new" 
+                href="/report/create" 
                 className="text-gray-600 hover:text-primary"
                 onClick={() => setIsMenuOpen(false)}
               >

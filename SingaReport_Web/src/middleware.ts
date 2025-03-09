@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, extractTokenFromHeader } from '@/lib/auth/jwt-utils';
 
+// Development mode bypass flag (enables skipping auth verification in dev mode)
+const DEV_AUTH_BYPASS = true;
+
 // Paths that require token verification
 const PROTECTED_PATHS = [
   '/api/reports',
@@ -8,66 +11,214 @@ const PROTECTED_PATHS = [
   '/api/admin'
 ];
 
+// Public API paths that don't require authentication
+const PUBLIC_API_PATHS = [
+  '/api/demo',
+  '/api/auth'
+];
+
+// Add this function to handle report routes specifically
+async function handleReportRoutes(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  console.log(`[MIDDLEWARE-DEBUG] Checking report route: ${path}`);
+  
+  // If this is a report creation route, check for authentication
+  if (path.startsWith('/report/create')) {
+    console.log('[MIDDLEWARE-DEBUG] Report creation route detected, checking auth');
+    
+    // For development mode with bypass flag enabled, skip auth
+    if (process.env.NODE_ENV === 'development' && DEV_AUTH_BYPASS) {
+      console.log(`[MIDDLEWARE-DEBUG] DEVELOPMENT MODE - bypassing authentication for: ${path}`);
+      return NextResponse.next();
+    }
+    
+    // Check for auth token in cookies
+    const token = request.cookies.get('auth_token')?.value;
+    console.log(`[MIDDLEWARE-DEBUG] Auth token present: ${!!token}`);
+    
+    if (!token) {
+      // Redirect to login with return URL
+      const returnUrl = encodeURIComponent(path);
+      const redirectUrl = new URL(`/login?returnUrl=${returnUrl}`, request.url);
+      console.log(`[MIDDLEWARE-DEBUG] No auth token, redirecting to: ${redirectUrl.pathname}${redirectUrl.search}`);
+      
+      return NextResponse.redirect(redirectUrl);
+    }
+    
+    try {
+      // Verify token
+      const payload = await verifyToken(token);
+      if (!payload) {
+        console.log('[MIDDLEWARE-DEBUG] Invalid token, redirecting to login');
+        const returnUrl = encodeURIComponent(path);
+        const redirectUrl = new URL(`/login?returnUrl=${returnUrl}`, request.url);
+        return NextResponse.redirect(redirectUrl);
+      }
+      
+      // Token is valid, allow request
+      console.log('[MIDDLEWARE-DEBUG] Valid token found, allowing report page access');
+      return NextResponse.next();
+    } catch (error) {
+      console.error('[MIDDLEWARE-DEBUG] Token verification error:', error);
+      const returnUrl = encodeURIComponent(path);
+      const redirectUrl = new URL(`/login?returnUrl=${returnUrl}`, request.url);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+  
+  // For non-report routes, continue with normal middleware processing
+  return null;
+}
+
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  console.log(`[MIDDLEWARE-DEBUG] Processing request for path: ${path}`);
+  
+  // Handle report routes first
+  const reportRouteResult = await handleReportRoutes(request);
+  if (reportRouteResult) {
+    return reportRouteResult;
+  }
+  
+  // Continue with existing middleware logic for API routes...
+  
+  console.log(`[MIDDLEWARE-DEBUG] Development mode: ${process.env.NODE_ENV === 'development'}`);
+  console.log(`[MIDDLEWARE-DEBUG] Auth bypass enabled: ${DEV_AUTH_BYPASS}`);
+  
+  // Check if path is in the public API whitelist
+  for (const publicPath of PUBLIC_API_PATHS) {
+    if (path.startsWith(publicPath)) {
+      console.log(`[MIDDLEWARE-DEBUG] Allowing public access to: ${path}`);
+      return NextResponse.next();
+    }
+  }
   
   // If not a protected path, allow the request to proceed
   if (!PROTECTED_PATHS.some(prefix => path.startsWith(prefix))) {
+    console.log(`[MIDDLEWARE-DEBUG] Path ${path} is not protected, allowing access`);
     return NextResponse.next();
   }
 
-  // Try to get token from cookie
-  const token = request.cookies.get('auth_token')?.value;
-  
-  // If no token in cookie, try to get from Authorization header
-  const headerToken = request.headers.get('Authorization');
-  const extractedHeaderToken = headerToken ? extractTokenFromHeader(headerToken) : null;
-  
-  // Use cookie token or header token
-  const authToken = token || extractedHeaderToken;
+  // For development mode with bypass flag enabled, skip auth
+  if (process.env.NODE_ENV === 'development' && DEV_AUTH_BYPASS) {
+    console.log(`[MIDDLEWARE-DEBUG] DEVELOPMENT MODE - bypassing authentication for: ${path}`);
+    const modifiedHeaders = new Headers(request.headers);
+    modifiedHeaders.set('x-user', JSON.stringify({
+      id: 'dev-user-id',
+      username: 'dev-user',
+      email: 'dev@example.com',
+      role: 'admin', // Give admin access in dev mode
+    }));
+    
+    return NextResponse.next({
+      request: {
+        headers: modifiedHeaders,
+      },
+    });
+  }
 
-  // If no token, return unauthorized response
-  if (!authToken) {
+  console.log(`[MIDDLEWARE-DEBUG] Path ${path} requires authentication, checking token`);
+  
+  // Dump all request headers for debugging
+  console.log('[MIDDLEWARE-DEBUG] Request headers:');
+  request.headers.forEach((value, key) => {
+    if (key.toLowerCase() === 'authorization') {
+      console.log(`[MIDDLEWARE-DEBUG]   ${key}: Bearer [REDACTED]`);
+    } else {
+      console.log(`[MIDDLEWARE-DEBUG]   ${key}: ${value}`);
+    }
+  });
+  
+  // Try to get token from authorization header
+  const authHeader = request.headers.get('authorization');
+  console.log(`[MIDDLEWARE-DEBUG] Authorization header present: ${!!authHeader}`);
+  
+  let headerToken = null;
+  if (authHeader) {
+    if (authHeader.startsWith('Bearer ')) {
+      headerToken = authHeader.substring(7);
+      console.log(`[MIDDLEWARE-DEBUG] Extracted token from header (first 10 chars): ${headerToken.substring(0, 10)}...`);
+    } else {
+      console.log(`[MIDDLEWARE-DEBUG] Authorization header does not use Bearer scheme: ${authHeader.substring(0, 10)}...`);
+    }
+  }
+  
+  // Try to get token from cookie
+  const cookieToken = request.cookies.get('auth_token')?.value;
+  console.log(`[MIDDLEWARE-DEBUG] Cookie token present: ${!!cookieToken}`);
+  if (cookieToken) {
+    console.log(`[MIDDLEWARE-DEBUG] Cookie token (first 10 chars): ${cookieToken.substring(0, 10)}...`);
+  }
+  
+  // Enumerate all cookies for debugging
+  console.log('[MIDDLEWARE-DEBUG] All cookies:');
+  request.cookies.getAll().forEach(cookie => {
+    console.log(`[MIDDLEWARE-DEBUG]   ${cookie.name}: ${cookie.value.substring(0, Math.min(10, cookie.value.length))}...`);
+  });
+  
+  // Use header token or cookie token
+  const token = headerToken || cookieToken;
+
+  // If no token found, return unauthorized
+  if (!token) {
+    console.log(`[MIDDLEWARE-DEBUG] No auth token found in request, returning 401`);
     return NextResponse.json(
-      { error: 'Unauthorized access' },
+      { success: false, message: 'Unauthorized access - No token provided' },
       { status: 401 }
     );
   }
 
   try {
-    // 异步验证令牌
-    const user = await verifyToken(authToken);
+    // 验证令牌
+    console.log(`[MIDDLEWARE-DEBUG] Verifying token: ${token.substring(0, 10)}...`);
+    const payload = await verifyToken(token);
     
-    if (!user) {
-      // 清除无效的cookie令牌
-      const response = NextResponse.json(
-        { error: 'Invalid or expired token' },
+    if (!payload) {
+      console.log(`[MIDDLEWARE-DEBUG] Token verification failed (null payload), returning 401`);
+      return NextResponse.json(
+        { success: false, message: 'Invalid or expired token' },
         { status: 401 }
       );
-      
-      if (token) {
-        response.cookies.delete('auth_token');
-      }
-      
-      return response;
     }
 
-    // 令牌有效,继续处理请求
-    return NextResponse.next();
-  } catch (error) {
-    console.error('Token verification error:', error);
+    // Token format verification
+    try {
+      const tokenParts = token.split('.');
+      console.log(`[MIDDLEWARE-DEBUG] Token has ${tokenParts.length} parts (should be 3 for valid JWT)`);
+      
+      if (tokenParts.length !== 3) {
+        console.log(`[MIDDLEWARE-DEBUG] Token format is invalid, doesn't have 3 parts`);
+        return NextResponse.json(
+          { success: false, message: 'Invalid token format' },
+          { status: 401 }
+        );
+      }
+    } catch (parseError) {
+      console.error(`[MIDDLEWARE-DEBUG] Error parsing token format:`, parseError);
+    }
+
+    // 令牌验证成功
+    console.log(`[MIDDLEWARE-DEBUG] Token verification successful for user:`, payload);
     
-    // 验证失败,返回未授权响应
-    const response = NextResponse.json(
-      { error: 'Authentication failed' },
+    // 在请求上下文中添加用户信息，以便后续处理
+    const modifiedHeaders = new Headers(request.headers);
+    modifiedHeaders.set('x-user', JSON.stringify(payload));
+    
+    console.log(`[MIDDLEWARE-DEBUG] Adding user to request headers, proceeding to API`);
+    
+    return NextResponse.next({
+      request: {
+        headers: modifiedHeaders,
+      },
+    });
+  } catch (error) {
+    console.error(`[MIDDLEWARE-DEBUG] Token verification error:`, error);
+    
+    // 验证失败返回未授权
+    return NextResponse.json(
+      { success: false, message: 'Authentication failed - Token verification error' },
       { status: 401 }
     );
-    
-    if (token) {
-      response.cookies.delete('auth_token');
-    }
-    
-    return response;
   }
 }
 
@@ -77,5 +228,7 @@ export const config = {
     '/api/reports/:path*',
     '/api/user/:path*',
     '/api/admin/:path*',
+    '/report/create/:path*',
+    '/report/create'
   ],
 }; 

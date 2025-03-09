@@ -92,7 +92,7 @@ export default function Home() {
               </p>
               <div className="flex flex-wrap gap-4">
                 <Link 
-                  href="/report/new" 
+                  href="/report/create" 
                   className="px-6 py-3 bg-primary hover:bg-primary/90 text-white font-medium rounded-lg shadow-md transition-colors"
                 >
                   Report an Issue

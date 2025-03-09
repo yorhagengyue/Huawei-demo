@@ -18,9 +18,15 @@ export default function MapMarker({
   onClick, 
   onDragEnd 
 }: MapMarkerProps) {
-  // 谷歌警告Marker已弃用，但我们暂时仍使用它
-  // 忽略控制台警告，在将来的版本中我们会迁移到AdvancedMarkerElement
-  // 现在尝试使用AdvancedMarkerElement会引入额外的加载问题
+  // Google warns that Marker is deprecated, but we'll continue using it for now
+  // We'll ignore console warnings and migrate to AdvancedMarkerElement in future versions
+  // Using AdvancedMarkerElement now would introduce additional loading issues
+  
+  // Add console log for debugging
+  useEffect(() => {
+    console.log('Rendering marker at position:', position);
+  }, [position]);
+  
   return (
     <Marker
       position={position}

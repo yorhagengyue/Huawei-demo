@@ -333,7 +333,7 @@ export default function MapPage() {
               </button>
               
               <Link 
-                href="/report/new" 
+                href="/report/create" 
                 className="px-3 py-1 bg-primary text-white text-sm rounded-md hover:bg-primary/90"
               >
                 + New Report

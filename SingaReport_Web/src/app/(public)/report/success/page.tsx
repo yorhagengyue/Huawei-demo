@@ -168,7 +168,7 @@ export default function ReportSuccessPage() {
                 </AnimatedCard>
               </Link>
               
-              <Link href="/report/new">
+              <Link href="/report/create">
                 <AnimatedCard delay={0.5} className="p-4 text-center">
                   <MapPin className="w-8 h-8 text-primary mx-auto mb-2" />
                   <h3 className="font-medium text-gray-900 mb-1">New Report</h3>

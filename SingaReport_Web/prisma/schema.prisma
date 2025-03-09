@@ -43,7 +43,6 @@ model User {
 
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
-  reports    Report[] // Reports created by user
   uploadLogs UploadLog[] // User's upload logs
   files      File[] // Files uploaded by user
 }
@@ -58,12 +57,12 @@ model Report {
   location    String?
   latitude    Float?
   longitude   Float?
+  severity    String   @default("medium") // low, medium, high
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // Associated with the user who created this report
   userId String
-  user   User   @relation(fields: [userId], references: [id])
 
   // Media files for the report
   media Media[]

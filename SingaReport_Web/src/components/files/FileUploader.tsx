@@ -211,6 +211,33 @@ export default function FileUploader({
       const responseData = await response.json();
       setUploadResponse(responseData);
       
+      // 检查是否是演示文件并需要存储到sessionStorage
+      const isDemoStorage = response.headers.get('X-Demo-File-Storage') === 'true';
+      if (isDemoStorage && responseData.fileDetails) {
+        try {
+          // 获取现有的已上传文件
+          let uploadedFiles = [];
+          const storedFiles = sessionStorage.getItem('uploadedDemoFiles');
+          if (storedFiles) {
+            uploadedFiles = JSON.parse(storedFiles);
+          }
+          
+          // 添加新上传的文件
+          uploadedFiles.push(responseData.fileDetails);
+          
+          // 限制存储的文件数量，防止过多
+          if (uploadedFiles.length > 20) {
+            uploadedFiles = uploadedFiles.slice(-20);
+          }
+          
+          // 保存回sessionStorage
+          sessionStorage.setItem('uploadedDemoFiles', JSON.stringify(uploadedFiles));
+          console.log('Saved demo file to session storage:', responseData.fileDetails.id);
+        } catch (e) {
+          console.error('Error saving demo file to session storage:', e);
+        }
+      }
+      
       // Call success callback
       if (onSuccess) {
         onSuccess(responseData.fileId, responseData);
@@ -322,18 +349,24 @@ export default function FileUploader({
       
       {/* Demo data option - only visible in development mode */}
       {isDevelopment && (
-        <div className="flex items-center space-x-2 mt-2">
+        <div className="flex items-center space-x-2 mb-4">
           <Checkbox 
             id="isDemo" 
-            checked={isDemo}
-            onCheckedChange={(checked) => setIsDemo(checked === true)}
+            checked={isDemo} 
+            onCheckedChange={(checked) => setIsDemo(checked as boolean)}
           />
-          <label 
-            htmlFor="isDemo" 
-            className="text-sm text-amber-700 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-          >
-            Mark as demo data (for development purposes only)
-          </label>
+          <div className="space-y-1">
+            <Label 
+              htmlFor="isDemo" 
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center"
+            >
+              Mark as demo data <span className="ml-2 text-xs text-amber-500 font-normal">(for development purposes only)</span>
+            </Label>
+            <p className="text-xs text-gray-500">
+              When checked, this file will be stored in browser memory rather than in the database.
+              This option is only available in development mode.
+            </p>
+          </div>
         </div>
       )}
       
