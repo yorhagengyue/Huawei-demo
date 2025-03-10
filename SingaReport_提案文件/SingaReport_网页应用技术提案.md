@@ -1048,3 +1048,474 @@ const verifyAuth = async () => {
 5. 最后解决认证相关问题
 
 这些修改应该能解决地图无法显示的问题，让我们开始实施。需要我帮助修改具体文件吗？ 
+
+# JanusPro AI接口实现详情
+
+## 1. JanusPro集成架构
+
+JanusPro多模态模型将通过以下架构集成到SingaReport报告创建流程中：
+
+```
+┌─────────────────┐     ┌───────────────────┐     ┌─────────────────┐
+│ 客户端上传界面  │────►│ 图像预处理服务     │────►│ JanusPro推理服务 │
+└─────────────────┘     └───────────────────┘     └────────┬────────┘
+                                                           │
+                                                           ▼
+┌─────────────────┐     ┌───────────────────┐     ┌─────────────────┐
+│ 客户端AI建议UI  │◄────│ 结果解析与建议生成 │◄────│ 推理结果后处理  │
+└─────────────────┘     └───────────────────┘     └─────────────────┘
+```
+
+## 2. 图像分析API接口规范
+
+### 2.1 接口定义
+
+```typescript
+// JanusPro AI分析服务接口
+interface JanusProAnalysisService {
+  /**
+   * 分析上传的图像并返回问题分析结果
+   * @param imageData 图像数据（Base64编码或File对象）
+   * @param context 分析上下文（可选，如已知的问题类别）
+   * @returns 返回Promise，包含分析结果
+   */
+  analyzeImage(
+    imageData: string | File, 
+    context?: {
+      category?: string;
+      location?: {lat: number, lng: number};
+    }
+  ): Promise<ImageAnalysisResult>;
+}
+
+// 图像分析结果接口
+interface ImageAnalysisResult {
+  /** 主要问题类别 */
+  primaryCategory: string;
+  /** 可能的次要问题类别 */
+  secondaryCategories: Array<{category: string, confidence: number}>;
+  /** 估计的问题严重程度 */
+  severity: 'low' | 'medium' | 'high';
+  /** 置信度分数 (0-1) */
+  confidence: number;
+  /** 详细的问题描述建议 */
+  descriptionSuggestion: string;
+  /** 检测到的相关对象 */
+  detectedObjects?: Array<{
+    label: string;
+    confidence: number;
+    bbox?: [number, number, number, number]; // [x, y, width, height]
+  }>;
+  /** 原始模型输出(调试用) */
+  rawOutput?: Record<string, any>;
+}
+```
+
+### 2.2 API端点
+
+**POST /api/ai/analyze-image**
+
+**请求体:**
+```json
+{
+  "image": "[Base64编码的图像数据]",
+  "context": {
+    "category": "road_damage",
+    "location": {"lat": 1.3521, "lng": 103.8198}
+  }
+}
+```
+
+**成功响应 (200):**
+```json
+{
+  "primaryCategory": "road_damage",
+  "secondaryCategories": [
+    {"category": "safety", "confidence": 0.35}
+  ],
+  "severity": "medium",
+  "confidence": 0.87,
+  "descriptionSuggestion": "Large pothole approximately 30cm in diameter and 5cm deep, located in the middle of the road lane. The edges appear sharp and could cause tire damage.",
+  "detectedObjects": [
+    {"label": "pothole", "confidence": 0.92, "bbox": [150, 200, 100, 80]},
+    {"label": "road_crack", "confidence": 0.67, "bbox": [300, 250, 50, 120]}
+  ]
+}
+```
+
+## 3. JanusPro模型调用实现
+
+### 3.1 服务端实现
+
+```python
+# 服务器端JanusPro AI分析服务实现
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import JSONResponse
+import torch
+from PIL import Image
+import io
+import base64
+import numpy as np
+
+# 导入Janus库
+from janus import inference
+from janus.generation_inference import analyze_image
+
+app = FastAPI()
+
+# 加载JanusPro模型(服务启动时)
+model, processor = inference.load_model("models/Janus-Pro-7B")
+
+@app.post("/api/ai/analyze-image")
+async def analyze_image_api(image_data: dict):
+    try:
+        # 解码图像
+        if "image" not in image_data:
+            raise HTTPException(status_code=400, detail="No image data provided")
+            
+        # 处理图像数据
+        image_bytes = base64.b64decode(image_data["image"])
+        image = Image.open(io.BytesIO(image_bytes))
+        
+        # 获取上下文信息
+        context = image_data.get("context", {})
+        category = context.get("category", None)
+        
+        # 构建问题提示
+        if category:
+            question = f"Analyze this image showing {category} issue. Describe the problem in detail, assess its severity (low/medium/high), and suggest key points to include in a report."
+        else:
+            question = "Analyze this image of an urban infrastructure issue. What type of problem is shown? Describe it in detail, assess its severity (low/medium/high), and suggest key points for a report."
+        
+        # 调用JanusPro模型分析
+        analysis_result = analyze_image(model, processor, image, question)
+        
+        # 解析模型输出
+        # 这里需要根据Janus-Pro-7B的实际输出格式进行定制解析
+        parsed_result = parse_model_output(analysis_result, category)
+        
+        return JSONResponse(content=parsed_result)
+    
+    except Exception as e:
+        print(f"Error analyzing image: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Image analysis failed: {str(e)}")
+
+def parse_model_output(raw_output, suggested_category=None):
+    """解析模型输出，提取结构化信息"""
+    # 这个函数需要根据Janus-Pro-7B的实际输出格式定制
+    # 下面是示例实现
+    
+    # 使用简单规则或更复杂的NLP从文本中提取信息
+    text = raw_output.strip()
+    
+    # 识别问题类别
+    categories = ["road_damage", "cleanliness", "construction", 
+                  "drainage", "parking", "street_lighting"]
+    
+    primary_category = suggested_category
+    if not primary_category:
+        # 简单的关键词匹配来确定类别
+        for category in categories:
+            if category.replace("_", " ") in text.lower():
+                primary_category = category
+                break
+        if not primary_category:
+            primary_category = "other"
+    
+    # 提取严重程度
+    severity = "medium"  # 默认值
+    if "high severity" in text.lower() or "severe" in text.lower():
+        severity = "high"
+    elif "low severity" in text.lower() or "minor" in text.lower():
+        severity = "low"
+    
+    # 生成描述建议
+    description_suggestion = text
+    if len(text) > 200:
+        # 取前200个字符作为简短建议
+        description_suggestion = text[:200] + "..."
+    
+    return {
+        "primaryCategory": primary_category,
+        "secondaryCategories": [],  # 更复杂的实现可以添加次要类别
+        "severity": severity,
+        "confidence": 0.85,  # 这应该基于模型的置信度分数
+        "descriptionSuggestion": description_suggestion,
+    }
+```
+
+### 3.2 客户端实现
+
+```typescript
+// 客户端JanusPro服务调用
+export class JanusProService {
+  private apiUrl = '/api/ai/analyze-image';
+  
+  /**
+   * 分析图像并获取AI建议
+   * @param imageFile 用户上传的图像文件
+   * @param context 上下文信息
+   */
+  async analyzeImage(
+    imageFile: File, 
+    context?: { category?: string, location?: { lat: number, lng: number } }
+  ): Promise<ImageAnalysisResult> {
+    try {
+      // 转换图像为Base64编码
+      const base64Image = await this.fileToBase64(imageFile);
+      
+      // 准备请求数据
+      const requestData = {
+        image: base64Image,
+        context: context || {}
+      };
+      
+      // 发送API请求
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      // 解析响应
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Error analyzing image with JanusPro:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * 将File对象转换为Base64编码的字符串
+   */
+  private fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        // 移除Data URL前缀(例如 "data:image/jpeg;base64,")
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = error => reject(error);
+    });
+  }
+}
+```
+
+## 4. 报告详情页面中的集成
+
+在报告创建流程的详情页面中，JanusPro AI功能将在以下几个关键点集成：
+
+1. **图像上传处理**：
+   - 用户上传图片后立即触发AI分析
+   - 显示分析中状态指示器
+   - 处理超时和错误情况
+
+2. **AI建议展示**：
+   - 在描述文本框下方显示AI生成的建议
+   - 允许用户一键采纳建议文本
+   - 提供视觉指示区分AI建议和用户输入
+
+3. **严重程度自动选择**：
+   - 基于AI分析结果预选严重程度选项
+   - 保留用户修改的能力
+
+### 4.1 详情页面集成代码示例
+
+```tsx
+// 在详情页面中集成JanusPro分析
+import { useState, useEffect } from 'react';
+import { JanusProService } from '@/services/janus-pro-service';
+
+// JanusPro服务实例
+const janusProService = new JanusProService();
+
+// 在ReportDetailsPage组件内
+const [aiAnalysisState, setAiAnalysisState] = useState<{
+  isAnalyzing: boolean;
+  result: ImageAnalysisResult | null;
+  error: string | null;
+}>({
+  isAnalyzing: false,
+  result: null,
+  error: null
+});
+
+// 处理文件上传
+const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  if (e.target.files && e.target.files[0]) {
+    const file = e.target.files[0];
+    setFormData(prev => ({
+      ...prev,
+      photo: file
+    }));
+    
+    // 触发AI分析
+    await analyzeImageWithAI(file);
+  }
+};
+
+// AI图像分析处理
+const analyzeImageWithAI = async (file: File) => {
+  setAiAnalysisState({
+    isAnalyzing: true,
+    result: null,
+    error: null
+  });
+  
+  try {
+    // 获取当前选择的类别作为上下文
+    const context = { 
+      category: categoryData,
+      location: locationData ? { 
+        lat: locationData.latitude, 
+        lng: locationData.longitude 
+      } : undefined
+    };
+    
+    // 调用JanusPro服务
+    const result = await janusProService.analyzeImage(file, context);
+    
+    // 更新状态
+    setAiAnalysisState({
+      isAnalyzing: false,
+      result,
+      error: null
+    });
+    
+    // 如果AI有严重程度建议，可以自动选择
+    if (result.severity) {
+      setFormData(prev => ({
+        ...prev,
+        severity: result.severity
+      }));
+    }
+  } catch (error) {
+    console.error('AI analysis failed:', error);
+    setAiAnalysisState({
+      isAnalyzing: false,
+      result: null,
+      error: 'Image analysis failed. Please try again or proceed without AI assistance.'
+    });
+  }
+};
+
+// 采用AI建议的函数
+const applyAISuggestion = () => {
+  if (aiAnalysisState.result?.descriptionSuggestion) {
+    setFormData(prev => ({
+      ...prev,
+      description: aiAnalysisState.result?.descriptionSuggestion || ''
+    }));
+  }
+};
+
+// 在表单UI中显示AI建议
+{aiAnalysisState.isAnalyzing && (
+  <div className="mt-2 p-3 bg-indigo-50 border border-indigo-200 rounded-md">
+    <div className="flex items-start gap-2">
+      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-indigo-500 mt-1"></div>
+      <div className="text-sm text-indigo-700">
+        <p>Analyzing image with AI, please wait...</p>
+      </div>
+    </div>
+  </div>
+)}
+
+{!aiAnalysisState.isAnalyzing && aiAnalysisState.result && (
+  <div className="mt-2 p-3 bg-indigo-50 border border-indigo-200 rounded-md">
+    <div className="flex items-start gap-2">
+      <Lightbulb className="h-5 w-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+      <div className="flex-1">
+        <div className="flex justify-between items-start">
+          <p className="text-sm font-medium text-indigo-700">AI Suggestion</p>
+          <button 
+            type="button"
+            onClick={applyAISuggestion}
+            className="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-2 py-1 rounded"
+          >
+            Use Suggestion
+          </button>
+        </div>
+        <p className="text-sm text-indigo-700 mt-1">{aiAnalysisState.result.descriptionSuggestion}</p>
+        {aiAnalysisState.result.severity && (
+          <p className="text-xs mt-1 text-indigo-600">
+            Suggested severity: <span className="font-medium capitalize">{aiAnalysisState.result.severity}</span>
+          </p>
+        )}
+      </div>
+    </div>
+  </div>
+)}
+
+{!aiAnalysisState.isAnalyzing && aiAnalysisState.error && (
+  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+    <div className="flex items-start gap-2">
+      <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+      <div className="text-sm text-red-700">
+        <p>{aiAnalysisState.error}</p>
+      </div>
+    </div>
+  </div>
+)}
+```
+
+## 5. 实施与部署计划
+
+### 5.1 JanusPro模型部署
+
+JanusPro-7B模型将部署在华为Cloud ModelArts平台，使用以下配置：
+
+1. **推理实例规格**：
+   - Ascend 910计算实例或NVIDIA A10/T4 GPU
+   - 8GB以上GPU内存
+   - 16GB系统内存
+
+2. **优化技术**：
+   - INT8量化模型用于生产环境
+   - KV缓存优化
+   - 批处理推理
+   - 动态形状处理
+
+3. **可扩展性设置**：
+   - 自动扩缩容：基于队列长度，最小1个实例，最大5个实例
+   - 冷启动优化：预热请求和模型缓存
+
+### 5.2 实施时间线
+
+| 阶段 | 任务 | 时间 | 交付物 |
+|------|------|------|--------|
+| 1 | JanusPro API接口设计 | 周1-2 | API规范文档 |
+| 2 | 模型微调与定制化 | 周2-4 | 新加坡市政问题识别模型 |
+| 3 | 服务端API实现 | 周3-5 | 后端API服务 |
+| 4 | 前端组件开发 | 周4-6 | React UI组件 |
+| 5 | 集成测试 | 周6-7 | 测试报告 |
+| 6 | 性能优化 | 周7-8 | 性能基准 |
+| 7 | 生产部署 | 周8 | 部署文档 |
+
+### 5.3 监控与评估
+
+1. **性能指标**：
+   - 平均响应时间：<2秒
+   - P95响应时间：<4秒
+   - 每分钟请求处理量：>50
+   - GPU利用率：>70%
+
+2. **质量指标**：
+   - 问题分类准确率：>85%
+   - 严重程度估计准确率：>80%
+   - 用户采纳AI建议率：>50%
+
+3. **监控工具**：
+   - 华为Cloud AOM进行应用监控
+   - 自定义仪表盘跟踪AI特定指标
+   - 定期模型质量评估 

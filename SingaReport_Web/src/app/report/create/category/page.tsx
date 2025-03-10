@@ -10,7 +10,11 @@ import {
   HardHat, 
   CloudRain, 
   Car, 
-  Lightbulb 
+  Lightbulb,
+  Building,
+  Leaf,
+  Volume2,
+  FileText
 } from 'lucide-react';
 
 // Report creation steps
@@ -24,10 +28,10 @@ const STEPS = {
 // Category options with icons and descriptions
 const categories = [
   {
-    id: 'road_damage',
-    name: 'Road Damage',
+    id: 'infrastructure',
+    name: 'Infrastructure',
     icon: <UtilityPole className="h-12 w-12 mb-2 text-primary" />,
-    description: 'Potholes, cracks, uneven surfaces, damaged pavements'
+    description: 'Roads, bridges, public structures, potholes, street damage'
   },
   {
     id: 'cleanliness',
@@ -36,29 +40,41 @@ const categories = [
     description: 'Litter, illegal dumping, public bin issues, graffiti'
   },
   {
+    id: 'facilities',
+    name: 'Facilities',
+    icon: <Building className="h-12 w-12 mb-2 text-primary" />,
+    description: 'Public buildings, recreation areas, street furniture, lighting'
+  },
+  {
+    id: 'safety',
+    name: 'Safety',
+    icon: <AlertTriangle className="h-12 w-12 mb-2 text-primary" />,
+    description: 'Hazardous conditions, dangerous areas, public safety issues'
+  },
+  {
+    id: 'environment',
+    name: 'Environment',
+    icon: <Leaf className="h-12 w-12 mb-2 text-primary" />,
+    description: 'Trees, plants, parks, drainage, flooding, water issues'
+  },
+  {
+    id: 'noise',
+    name: 'Noise',
+    icon: <Volume2 className="h-12 w-12 mb-2 text-primary" />,
+    description: 'Excessive noise, late night disturbances, construction noise'
+  },
+  {
     id: 'construction',
     name: 'Construction',
     icon: <HardHat className="h-12 w-12 mb-2 text-primary" />,
-    description: 'Unsafe sites, blocking paths, after-hours noise'
+    description: 'Construction sites, building work, roadwork, barriers'
   },
   {
-    id: 'drainage',
-    name: 'Drainage',
-    icon: <CloudRain className="h-12 w-12 mb-2 text-primary" />,
-    description: 'Clogged drains, flooding, water ponding issues'
-  },
-  {
-    id: 'parking',
-    name: 'Parking',
-    icon: <Car className="h-12 w-12 mb-2 text-primary" />,
-    description: 'Illegal parking, parking violations, blocked access'
-  },
-  {
-    id: 'street_lighting',
-    name: 'Street Lighting',
-    icon: <Lightbulb className="h-12 w-12 mb-2 text-primary" />,
-    description: 'Broken lights, dim lighting, exposed wiring'
-  },
+    id: 'other',
+    name: 'Other',
+    icon: <FileText className="h-12 w-12 mb-2 text-primary" />,
+    description: 'Any other issue not covered by the categories above'
+  }
 ];
 
 export default function CategorySelectionPage() {

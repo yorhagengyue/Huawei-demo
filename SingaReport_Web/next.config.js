@@ -11,6 +11,14 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'singareport-media.obs.ap-southeast-3.myhuaweicloud.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.pexels.com',
+      },
     ],
   }
 }

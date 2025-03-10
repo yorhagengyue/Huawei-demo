@@ -34,6 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { getUserIdFromToken } from '@/lib/utils/jwt-parser';
 
 // Report creation steps
 const STEPS = {
@@ -208,12 +209,14 @@ export default function ReportDetailsPage() {
       
       // Get category name from ID (in a real app, this would come from a database)
       const categoryMap: Record<string, string> = {
-        'road_damage': 'Road Damage',
+        'infrastructure': 'Infrastructure',
         'cleanliness': 'Cleanliness',
+        'facilities': 'Facilities',
+        'safety': 'Safety',
+        'environment': 'Environment',
+        'noise': 'Noise',
         'construction': 'Construction',
-        'drainage': 'Drainage',
-        'parking': 'Parking',
-        'street_lighting': 'Street Lighting'
+        'other': 'Other'
       };
       setCategoryName(categoryMap[category] || category);
       
@@ -353,12 +356,28 @@ export default function ReportDetailsPage() {
     }
   };
   
-  // 将原提交逻辑抽取为单独函数
+  // Submit report to the server
   const submitReport = async () => {
     setIsSubmitting(true);
     
     try {
       const title = `${categoryName} issue at ${locationData?.address}`;
+      
+      // Get user authentication data if available
+      const authToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth_token='))
+        ?.split('=')[1];
+      
+      // Log authentication status for debugging
+      console.log('Authentication status:', authToken ? 'Token found' : 'No token available');
+      
+      // Get user ID from token if available
+      let userId = null;
+      if (authToken) {
+        userId = getUserIdFromToken(authToken);
+        console.log('User ID from token:', userId);
+      }
       
       // Create a complete report object with all collected data
       const reportData = {
@@ -369,17 +388,27 @@ export default function ReportDetailsPage() {
         latitude: locationData?.latitude,
         longitude: locationData?.longitude,
         severity: formData.severity,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        userId: userId // Explicitly include user ID
       };
       
       console.log('Report data to submit:', reportData);
       
-      // Submit to backend API
+      // Prepare request headers with auth token
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Add Authorization header if token is available
+      if (authToken) {
+        console.log('Adding Authorization header with token');
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
+      
+      // Submit to backend API with auth token if available
       const response = await fetch('/api/reports', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(reportData),
       });
       
@@ -407,6 +436,7 @@ export default function ReportDetailsPage() {
             latitude: locationData?.latitude,
             longitude: locationData?.longitude,
             severity: formData.severity,
+            userId: userId, // Include user ID in temporary storage
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             submittedAt: new Date().toISOString(),

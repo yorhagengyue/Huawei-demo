@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth, useAuthSync } from '@/contexts/AuthContext';
+import { Home } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
 
 export default function Header() {
@@ -124,6 +125,10 @@ export default function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-6">
+            <Link href="/" className="text-gray-600 hover:text-primary flex items-center">
+              <Home className="mr-1 h-4 w-4" />
+              <span>Home</span>
+            </Link>
             <Link href="/map" className="text-gray-600 hover:text-primary">
               Map Overview
             </Link>
@@ -262,6 +267,14 @@ export default function Header() {
         {isMenuOpen && (
           <div className="md:hidden py-3 border-t border-gray-100">
             <nav className="flex flex-col space-y-3 pb-3">
+              <Link 
+                href="/" 
+                className="text-gray-600 hover:text-primary flex items-center"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <Home className="mr-1 h-4 w-4" />
+                <span>Home</span>
+              </Link>
               <Link 
                 href="/map" 
                 className="text-gray-600 hover:text-primary"

@@ -17,57 +17,50 @@ const PUBLIC_API_PATHS = [
   '/api/auth'
 ];
 
-// Add this function to handle report routes specifically
+// Helper function to redirect to login with return URL
+function redirectToLogin(request: NextRequest) {
+  const returnUrl = encodeURIComponent(request.nextUrl.pathname);
+  const redirectUrl = new URL(`/login?returnUrl=${returnUrl}`, request.url);
+  console.log(`[MIDDLEWARE-DEBUG] Redirecting to: ${redirectUrl.pathname}${redirectUrl.search}`);
+  return NextResponse.redirect(redirectUrl);
+}
+
+// Handle report-related routes (/api/reports/*)
 async function handleReportRoutes(request: NextRequest) {
-  const path = request.nextUrl.pathname;
-  console.log(`[MIDDLEWARE-DEBUG] Checking report route: ${path}`);
+  console.log('[MIDDLEWARE-DEBUG] Checking report route:', request.nextUrl.pathname);
   
-  // If this is a report creation route, check for authentication
-  if (path.startsWith('/report/create')) {
-    console.log('[MIDDLEWARE-DEBUG] Report creation route detected, checking auth');
-    
-    // For development mode with bypass flag enabled, skip auth
-    if (process.env.NODE_ENV === 'development' && DEV_AUTH_BYPASS) {
-      console.log(`[MIDDLEWARE-DEBUG] DEVELOPMENT MODE - bypassing authentication for: ${path}`);
-      return NextResponse.next();
-    }
-    
-    // Check for auth token in cookies
-    const token = request.cookies.get('auth_token')?.value;
-    console.log(`[MIDDLEWARE-DEBUG] Auth token present: ${!!token}`);
-    
-    if (!token) {
-      // Redirect to login with return URL
-      const returnUrl = encodeURIComponent(path);
-      const redirectUrl = new URL(`/login?returnUrl=${returnUrl}`, request.url);
-      console.log(`[MIDDLEWARE-DEBUG] No auth token, redirecting to: ${redirectUrl.pathname}${redirectUrl.search}`);
-      
-      return NextResponse.redirect(redirectUrl);
-    }
-    
-    try {
-      // Verify token
-      const payload = await verifyToken(token);
-      if (!payload) {
-        console.log('[MIDDLEWARE-DEBUG] Invalid token, redirecting to login');
-        const returnUrl = encodeURIComponent(path);
-        const redirectUrl = new URL(`/login?returnUrl=${returnUrl}`, request.url);
-        return NextResponse.redirect(redirectUrl);
-      }
-      
-      // Token is valid, allow request
-      console.log('[MIDDLEWARE-DEBUG] Valid token found, allowing report page access');
-      return NextResponse.next();
-    } catch (error) {
-      console.error('[MIDDLEWARE-DEBUG] Token verification error:', error);
-      const returnUrl = encodeURIComponent(path);
-      const redirectUrl = new URL(`/login?returnUrl=${returnUrl}`, request.url);
-      return NextResponse.redirect(redirectUrl);
-    }
+  // Check if in development mode
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  console.log('[MIDDLEWARE-DEBUG] Development mode:', isDevelopment);
+  
+  // Check if demo mode is enabled
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+  console.log('[MIDDLEWARE-DEBUG] Demo mode:', isDemoMode);
+  
+  // Only bypass auth in development mode with demo mode enabled
+  const bypassAuth = isDevelopment && isDemoMode;
+  console.log('[MIDDLEWARE-DEBUG] Auth bypass enabled:', bypassAuth);
+  
+  // For API requests, just let them pass through to be handled by the API route
+  if (request.nextUrl.pathname.startsWith('/api/reports')) {
+    console.log('[MIDDLEWARE-DEBUG] API route, passing through:', request.nextUrl.pathname);
+    return NextResponse.next();
   }
   
-  // For non-report routes, continue with normal middleware processing
-  return null;
+  if (bypassAuth) {
+    console.log('[MIDDLEWARE-DEBUG] DEVELOPMENT MODE - bypassing authentication for:', request.nextUrl.pathname);
+    return NextResponse.next();
+  }
+  
+  // Check for auth token in cookies
+  const token = request.cookies.get('auth_token')?.value;
+  if (!token) {
+    console.log('[MIDDLEWARE-DEBUG] No auth token found, redirecting to login');
+    return redirectToLogin(request);
+  }
+  
+  // Token verification is now done in the API routes
+  return NextResponse.next();
 }
 
 export async function middleware(request: NextRequest) {

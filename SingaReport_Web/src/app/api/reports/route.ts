@@ -8,42 +8,115 @@ const prisma = new PrismaClient();
 // Data source constants
 const DATA_SOURCE = {
   DATABASE: 'database',
+  DEMO: 'demo',
   ERROR: 'error'
 };
 
-// Fetch reports from database using Prisma
-async function fetchReportsFromDatabase(category?: string, status?: string) {
-  const filters: any = {};
+// Report type definition
+interface Report {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  status: string;
+  location: string;
+  latitude?: number;
+  longitude?: number;
+  severity: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: any; // Allow for additional properties
+}
+
+// Filter type for report queries
+interface ReportFilters {
+  userId?: string | null;
+  status?: string | null;
+  severity?: string | null;
+  category?: string | null;
+  location?: string | null;
+}
+
+/**
+ * Generate demo reports for testing
+ */
+function getDemoReports(): Report[] {
+  const statuses = ['open', 'in-progress', 'resolved'];
+  const severities = ['low', 'medium', 'high'];
+  const categories = [
+    'infrastructure', 
+    'cleanliness', 
+    'facilities', 
+    'safety', 
+    'environment', 
+    'noise', 
+    'construction', 
+    'other'
+  ];
+  const locations = ['North Region', 'Central Area', 'East Coast', 'Downtown'];
   
-  if (category) {
-    filters.category = category;
-  }
-  
-  if (status) {
-    filters.status = status;
-  }
-  
-  try {
-    console.log('Fetching from database with filters:', filters);
+  return Array.from({ length: 10 }, (_, i) => {
+    const createdDate = new Date();
+    createdDate.setDate(createdDate.getDate() - Math.floor(Math.random() * 30));
     
-    // Query database with filters
-    const reports = await prisma.report.findMany({
-      where: filters,
-      include: {
-        media: true,
-        // 已移除 user 关系，因为该关系不再存在
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-    
-    console.log(`Found ${reports.length} reports in database`);
-    return reports;
-  } catch (error) {
-    console.error('Error fetching from database:', error);
-    throw error;
-  }
+    return {
+      id: `demo-${i + 1}`,
+      title: `Demo Report ${i + 1}`,
+      description: `This is a sample report for demonstration purposes #${i + 1}`,
+      category: categories[Math.floor(Math.random() * categories.length)],
+      status: statuses[Math.floor(Math.random() * statuses.length)],
+      location: locations[Math.floor(Math.random() * locations.length)],
+      latitude: 1.35 + (Math.random() * 0.1),
+      longitude: 103.8 + (Math.random() * 0.1),
+      severity: severities[Math.floor(Math.random() * severities.length)],
+      userId: i < 5 ? 'demo-user-1' : 'demo-user-2', // First 5 belong to user 1, rest to user 2
+      createdAt: createdDate.toISOString(),
+      updatedAt: createdDate.toISOString()
+    };
+  });
+}
+
+/**
+ * Fetch reports from database
+ */
+async function fetchReportsFromDatabase(filters: ReportFilters): Promise<Report[]> {
+  const { userId, status, severity, category, location } = filters;
+  
+  console.log('Fetching from database with filters:', filters);
+  
+  // Build where clause based on filters
+  const where: any = {};
+  
+  if (userId) where.userId = userId;
+  if (status) where.status = status;
+  if (severity) where.severity = severity;
+  if (category) where.category = category;
+  if (location) where.location = { contains: location, mode: 'insensitive' };
+  
+  // Fetch reports from database
+  const reports = await prisma.report.findMany({
+    where,
+    orderBy: { createdAt: 'desc' }
+  });
+  
+  // Transform database results to match our Report interface
+  return reports.map(report => ({
+    id: report.id,
+    title: report.title,
+    description: report.description,
+    category: report.category,
+    status: report.status,
+    location: report.location || '',
+    latitude: report.latitude || undefined,
+    longitude: report.longitude || undefined,
+    severity: report.severity || 'medium', // Provide default if missing
+    userId: report.userId,
+    createdAt: report.createdAt.toISOString(),
+    updatedAt: report.updatedAt.toISOString(),
+    // Include any other properties that might be in the database
+    ...report
+  }));
 }
 
 // Save report to database using Prisma
@@ -85,99 +158,216 @@ async function saveReportToDatabase(reportData: any, userId: string = 'anonymous
   }
 }
 
-// GET reports API endpoint
+/**
+ * GET handler for reports
+ * Optional query parameters: userId, status, severity, category, location
+ */
 export async function GET(request: NextRequest) {
-  try {
-    // Get query parameters
-    const { searchParams } = new URL(request.url);
-    const categoryParam = searchParams.get('category');
-    const statusParam = searchParams.get('status');
-    
-    // Convert null to undefined for our function
-    const category = categoryParam ?? undefined;
-    const status = statusParam ?? undefined;
-    
-    // Log request info
-    console.log('GET /api/reports', { 
-      params: { category, status }
-    });
-    
-    try {
-      // Fetch reports from database
-      const reports = await fetchReportsFromDatabase(category, status);
-      
-      // 结构化响应，确保与前端期望的格式匹配
-      return NextResponse.json({
-        success: true,
-        reports: reports,
-        source: DATA_SOURCE.DATABASE,
-        timestamp: new Date().toISOString()
-      });
-    } catch (dbError) {
-      console.error('Database error when fetching reports:', dbError);
-      
-      // Return error response
-      return NextResponse.json(
-        { error: 'Database error', message: (dbError as Error).message, source: DATA_SOURCE.ERROR },
-        { status: 500 }
-      );
+  console.log('GET /api/reports received');
+  
+  const { searchParams } = new URL(request.url);
+  
+  // Log all search parameters for debugging
+  console.log('All search parameters:', Object.fromEntries(searchParams.entries()));
+  
+  // Extract filters from query params
+  const userIdFromParams = searchParams.get('userId');
+  const status = searchParams.get('status');
+  const severity = searchParams.get('severity');
+  const category = searchParams.get('category');
+  const location = searchParams.get('location');
+  const forceDatabase = searchParams.get('forceDatabase') === 'true';
+  const allUsers = searchParams.get('allUsers') === 'true';
+  
+  // For debugging: log detailed request information
+  console.log('Request info:', {
+    url: request.url,
+    userId: userIdFromParams,
+    userIdRaw: searchParams.get('userId'),
+    status,
+    severity,
+    category,
+    location,
+    forceDatabase,
+    allUsers
+  });
+  
+  // Try to get user from authentication context if userId not in params
+  let userId = userIdFromParams;
+  if (!userId) {
+    const user = getUserFromRequest(request);
+    if (user && user.id) {
+      // Only add user ID filter if not forcing all reports and not showing all users
+      if (!forceDatabase && !allUsers) {
+        userId = user.id;
+        console.log(`Using authenticated user ID: ${userId} (from token)`);
+      } else {
+        console.log(`Found user ID ${user.id} but not using as filter (showing all users' reports)`);
+        userId = null; // Clear userId when showing all reports
+      }
     }
+  } else if (allUsers) {
+    console.log(`Ignoring provided userId ${userId} because allUsers=true parameter is set`);
+    userId = null; // Ignore userId param if explicitly requesting all users
+  } else {
+    console.log(`Using userId from query params: ${userId}`);
+  }
+  
+  try {
+    // Demo mode check - unless forceDatabase is true
+    const isDemoMode = !forceDatabase && process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+    console.log(`Demo mode: ${isDemoMode ? 'ON' : 'OFF'}`);
+    console.log(`Force database: ${forceDatabase ? 'YES' : 'NO'}`);
+    
+    let reports: Report[] = [];
+    let dataSource = DATA_SOURCE.DATABASE;
+    
+    if (isDemoMode) {
+      // In demo mode, use demo data
+      reports = getDemoReports();
+      dataSource = DATA_SOURCE.DEMO;
+      console.log(`Retrieved ${reports.length} demo reports`);
+      
+      // Apply filters in memory for demo data
+      if (userId && userId.trim()) {
+        reports = reports.filter(report => report.userId === userId);
+        console.log(`Filtered for userId ${userId}, found ${reports.length} reports`);
+      }
+    } else {
+      // In normal mode, fetch from database
+      try {
+        reports = await fetchReportsFromDatabase({ userId, status, severity, category, location });
+        console.log(`Retrieved ${reports.length} reports from database`);
+      } catch (error) {
+        console.error('Database fetch error:', error);
+        
+        // Only fallback to demo data if not forcing database
+        if (!forceDatabase) {
+          console.log('Database error. Falling back to demo data.');
+          reports = getDemoReports();
+          dataSource = DATA_SOURCE.DEMO;
+          
+          // Apply filters for demo data
+          if (userId && userId.trim()) {
+            reports = reports.filter(report => report.userId === userId);
+          }
+          
+          console.log(`Fallback: retrieved ${reports.length} demo reports`);
+        } else {
+          return NextResponse.json(
+            { error: 'Failed to fetch reports from database', details: (error as Error).message },
+            { status: 500 }
+          );
+        }
+      }
+    }
+    
+    // Apply common filters (already applied for database, only needed for demo data)
+    if (isDemoMode) {
+      if (status) reports = reports.filter(report => report.status === status);
+      if (severity) reports = reports.filter(report => report.severity === severity);
+      if (category) reports = reports.filter(report => report.category === category);
+      if (location) reports = reports.filter(report => report.location.includes(location));
+    }
+    
+    // Return reports with metadata about the source
+    return NextResponse.json({
+      reports,
+      meta: {
+        dataSource,
+        filters: {
+          userId: userId || null,
+          status: status || null,
+          severity: severity || null,
+          category: category || null,
+          location: location || null
+        },
+        total: reports.length
+      }
+    });
   } catch (error) {
     console.error('Error in GET /api/reports:', error);
     return NextResponse.json(
-      { error: 'Failed to process request', message: (error as Error).message, source: DATA_SOURCE.ERROR },
+      { error: 'Failed to fetch reports', details: (error as Error).message },
       { status: 500 }
     );
   }
 }
 
-// POST report API endpoint
+/**
+ * POST handler for saving a new report
+ */
 export async function POST(request: NextRequest) {
+  console.log('POST /api/reports received');
+  
   try {
-    const data = await request.json();
-    console.log('POST /api/reports', { 
-      data: { title: data.title, category: data.category }
-    });
+    const body = await request.json();
+    console.log('Report submission received:', body);
     
-    // Check required fields
-    const requiredFields = ['title', 'category', 'description', 'location'];
-    const missingFields = requiredFields.filter(field => !data[field]);
+    // Demo mode check
+    const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
+    console.log(`Demo mode: ${isDemoMode ? 'ON' : 'OFF'}`);
     
-    if (missingFields.length > 0) {
-      return NextResponse.json(
-        { error: 'Missing required fields', fields: missingFields },
-        { status: 400 }
-      );
+    // Get authenticated user
+    const authenticatedUser = getUserFromRequest(request);
+    
+    // Determine user ID with clear logging
+    let userId = body.userId; // First check if provided in request body
+    
+    if (authenticatedUser && authenticatedUser.id) {
+      // If authenticated user found, use that ID (overrides body)
+      if (userId && userId !== authenticatedUser.id) {
+        console.log(`Overriding provided userId ${userId} with authenticated user ID ${authenticatedUser.id}`);
+      } else {
+        console.log(`Using authenticated user ID: ${authenticatedUser.id}`);
+      }
+      userId = authenticatedUser.id;
+    } else if (userId) {
+      // If only body userId available, use that
+      console.log(`Using userId from request body: ${userId}`);
+    } else {
+      // If no user ID available, generate anonymous ID
+      userId = `anonymous-${Date.now()}`;
+      console.log(`No userId provided or found in authentication, using generated: ${userId}`);
     }
     
-    try {
-      // Get authenticated user (if any)
-      const user = await getUserFromRequest(request);
-      const userId = user?.id || 'anonymous';
+    // Ensure userId is set in the report data
+    body.userId = userId;
+    console.log(`Final userId for report: ${userId}`);
+    
+    // In demo mode, don't actually save to database
+    if (isDemoMode) {
+      console.log('Demo mode: Simulating report save');
       
-      // Save report to database
-      const savedReport = await saveReportToDatabase(data, userId);
+      // Simulate successful submission with a fake ID
+      const fakeId = `demo-${Date.now()}`;
       
-      // Return success response
       return NextResponse.json({
         success: true,
-        message: 'Report submitted successfully',
-        report: savedReport,
-        source: DATA_SOURCE.DATABASE
+        report: {
+          id: fakeId,
+          ...body,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          status: 'open'
+        },
+        message: 'Report saved successfully (Demo Mode)'
       });
-    } catch (dbError) {
-      console.error('Database error when saving report:', dbError);
-      
-      // Return error response
-      return NextResponse.json(
-        { error: 'Failed to save report', message: (dbError as Error).message, source: DATA_SOURCE.ERROR },
-        { status: 500 }
-      );
     }
+    
+    // Save report to database (non-demo mode)
+    console.log('Saving report to database with userId:', userId);
+    const savedReport = await saveReportToDatabase(body);
+    
+    return NextResponse.json({
+      success: true,
+      report: savedReport,
+      message: 'Report saved successfully'
+    });
   } catch (error) {
-    console.error('Error in POST /api/reports:', error);
+    console.error('Error saving report:', error);
     return NextResponse.json(
-      { error: 'Failed to process request', message: (error as Error).message, source: DATA_SOURCE.ERROR },
+      { error: 'Failed to save report', details: (error as Error).message },
       { status: 500 }
     );
   }
