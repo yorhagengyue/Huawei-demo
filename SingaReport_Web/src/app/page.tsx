@@ -60,17 +60,17 @@ export default function Home() {
     {
       title: 'Pothole Repair on Orchard Road',
       description: 'A dangerous pothole was fixed within 3 days of reporting',
-      image: 'https://images.unsplash.com/photo-1545158539-1377a2d8454e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+      image: 'https://raw.githubusercontent.com/yorhagengyue/img-hosting/main/road-repair.jpg'
     },
     {
       title: 'Street Light Replacement',
       description: 'Dark street corner now properly lit after community reports',
-      image: 'https://images.unsplash.com/photo-1582415509220-53b0e5dfbd50?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+      image: 'https://raw.githubusercontent.com/yorhagengyue/img-hosting/main/street-light.jpg'
     },
     {
       title: 'Park Cleanup Initiative',
       description: 'Local park restored after multiple littering reports',
-      image: 'https://images.pexels.com/photos/6974078/pexels-photo-6974078.jpeg?auto=compress&cs=tinysrgb&w=800'
+      image: 'https://raw.githubusercontent.com/yorhagengyue/img-hosting/main/park-cleanup.jpg'
     }
   ];
 
@@ -108,7 +108,7 @@ export default function Home() {
             <div className="md:w-1/2 flex justify-center">
               <div className="relative w-full max-w-md">
                 <Image
-                  src="https://images.unsplash.com/photo-1538962413773-83abc43f9e94?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80"
+                  src="https://raw.githubusercontent.com/yorhagengyue/img-hosting/main/singapore-skyline.jpg"
                   alt="Singapore Urban Landscape"
                   width={500}
                   height={400}
