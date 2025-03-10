@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200">
+  <defs>
+    <linearGradient id="roadGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4b5563;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1f2937;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="400" height="200" fill="#d1d5db" />
+  
+  <!-- Road -->
+  <rect x="0" y="80" width="400" height="80" fill="url(#roadGradient)" />
+  
+  <!-- Road markings -->
+  <rect x="20" y="118" width="40" height="4" fill="white" />
+  <rect x="90" y="118" width="40" height="4" fill="white" />
+  <rect x="160" y="118" width="40" height="4" fill="white" />
+  <rect x="230" y="118" width="40" height="4" fill="white" />
+  <rect x="300" y="118" width="40" height="4" fill="white" />
+  <rect x="370" y="118" width="30" height="4" fill="white" />
+  
+  <!-- Pothole - before -->
+  <circle cx="200" cy="105" r="20" fill="#1f2937" stroke="#000000" stroke-width="2" />
+  <circle cx="200" cy="105" r="15" fill="#111827" stroke="#000000" stroke-width="1" />
+  
+  <!-- Pothole - after (repaired) -->
+  <circle cx="200" cy="105" r="20" fill="#4b5563" opacity="0.4" />
+  <circle cx="200" cy="105" r="19" fill="#4b5563" opacity="0.5" />
+  <circle cx="200" cy="105" r="18" fill="#4b5563" opacity="0.6" />
+  <circle cx="200" cy="105" r="17" fill="#4b5563" opacity="0.7" />
+  
+  <!-- Check mark for completion -->
+  <circle cx="325" cy="50" r="25" fill="#10b981" />
+  <path d="M315,50 L325,60 L340,40" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  
+  <!-- Worker icon -->
+  <circle cx="75" cy="50" r="15" fill="#f59e0b" />
+  <rect x="70" y="65" width="10" height="15" fill="#f59e0b" />
+  <line x1="75" y1="80" x2="65" y2="95" stroke="#f59e0b" stroke-width="3" />
+  <line x1="75" y1="80" x2="85" y2="95" stroke="#f59e0b" stroke-width="3" />
+  <line x1="75" y1="70" x2="60" y2="75" stroke="#f59e0b" stroke-width="3" />
+  <line x1="75" y1="70" x2="90" y2="75" stroke="#f59e0b" stroke-width="3" />
+  <circle cx="75" cy="45" r="5" fill="#fdba74" />
+  
+  <!-- Text labels -->
+  <text x="200" y="180" font-family="Arial" font-size="14" fill="#111827" text-anchor="middle" font-weight="bold">Pothole Repair on Orchard Road</text>
+  <text x="75" y="25" font-family="Arial" font-size="12" fill="#111827" text-anchor="middle">Before</text>
+  <text x="325" y="25" font-family="Arial" font-size="12" fill="#111827" text-anchor="middle">After</text>
+</svg> 

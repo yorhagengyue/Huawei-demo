@@ -46,16 +46,29 @@ export default function MapMarker({
   // 添加状态管理悬停提示的显示/隐藏
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   
+  // 添加标记是否已加载的状态（用于动画）
+  const [isMarkerLoaded, setIsMarkerLoaded] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  
   // 添加定时器引用，用于延迟显示和隐藏
   const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // 在组件卸载时清除定时器
+  // 标记引用，用于应用动画
+  const markerRef = useRef<google.maps.Marker | null>(null);
+  
+  // 在组件加载后触发淡入动画
   useEffect(() => {
-    return () => {
-      if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
-      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-    };
+    // 设置短暂延迟，以确保标记已渲染
+    const animationTimeout = setTimeout(() => {
+      setIsMarkerLoaded(true);
+      // 再添加一个短延迟让标记有序地显示出来
+      setTimeout(() => {
+        setIsVisible(true);
+      }, 200);
+    }, 100);
+    
+    return () => clearTimeout(animationTimeout);
   }, []);
   
   // 格式化日期
@@ -103,39 +116,40 @@ export default function MapMarker({
     }
   }, [position, reportInfo]);
   
-  // 延迟显示提示的处理函数
-  const handleShowTooltipWithDelay = useCallback(() => {
+  // 处理鼠标悬停
+  const handleMouseOver = useCallback(() => {
     // 清除任何现有的隐藏定时器
     if (hideTimeoutRef.current) {
       clearTimeout(hideTimeoutRef.current);
       hideTimeoutRef.current = null;
     }
     
-    // 设置显示定时器，添加300ms延迟
-    if (!isTooltipOpen && !showTimeoutRef.current) {
-      showTimeoutRef.current = setTimeout(() => {
-        setIsTooltipOpen(true);
-        showTimeoutRef.current = null;
-      }, 300);
-    }
-  }, [isTooltipOpen]);
+    // 添加短暂延迟，防止意外触发
+    showTimeoutRef.current = setTimeout(() => {
+      setIsTooltipOpen(true);
+    }, 200);
+  }, []);
   
-  // 延迟隐藏提示的处理函数
-  const handleHideTooltipWithDelay = useCallback(() => {
+  const handleMouseOut = useCallback(() => {
     // 清除任何现有的显示定时器
     if (showTimeoutRef.current) {
       clearTimeout(showTimeoutRef.current);
       showTimeoutRef.current = null;
     }
     
-    // 设置隐藏定时器，添加200ms延迟
-    if (isTooltipOpen && !hideTimeoutRef.current) {
-      hideTimeoutRef.current = setTimeout(() => {
-        setIsTooltipOpen(false);
-        hideTimeoutRef.current = null;
-      }, 200);
-    }
-  }, [isTooltipOpen]);
+    // 添加短暂延迟，防止快速移动鼠标时的闪烁
+    hideTimeoutRef.current = setTimeout(() => {
+      setIsTooltipOpen(false);
+    }, 300);
+  }, []);
+  
+  // 确保在组件卸载时清除所有定时器
+  useEffect(() => {
+    return () => {
+      if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    };
+  }, []);
   
   // 定义标记点击处理函数
   const handleMarkerClick = () => {
@@ -171,19 +185,28 @@ export default function MapMarker({
         icon={icon}
         onClick={handleMarkerClick}
         onDragEnd={onDragEnd}
-        onMouseOver={handleShowTooltipWithDelay}
-        onMouseOut={handleHideTooltipWithDelay}
-        zIndex={zIndex}
-        clusterer={clusterer}
+        onMouseOver={showTooltip ? handleMouseOver : undefined}
+        onMouseOut={showTooltip ? handleMouseOut : undefined}
+        zIndex={isTooltipOpen ? 1000 : zIndex} // 悬停时提高 z-index
+        opacity={isVisible ? 1 : 0} // 使用透明度创建淡入效果
+        clusterer={isClusterable ? clusterer : undefined}
       />
       
-      {showTooltip && reportInfo && isTooltipOpen && (
+      {/* 当悬停和报告信息存在时显示信息窗口 */}
+      {isTooltipOpen && reportInfo && showTooltip && (
         <InfoWindow
           position={position}
           onCloseClick={() => setIsTooltipOpen(false)}
-          options={{ pixelOffset: new window.google.maps.Size(0, -40) }}
+          options={{
+            pixelOffset: new google.maps.Size(0, -40),
+            disableAutoPan: true,
+          }}
         >
-          <div className="p-1 max-w-xs" onClick={handleInfoWindowClick}>
+          <div 
+            className="text-sm p-1 max-w-[200px] transition-opacity duration-300"
+            style={{ opacity: isTooltipOpen ? 1 : 0 }}
+            onClick={handleInfoWindowClick}
+          >
             <div className="font-medium text-gray-900 mb-1">{reportInfo.title}</div>
             
             {reportInfo.status && (
